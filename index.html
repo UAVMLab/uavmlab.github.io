@@ -20,7 +20,29 @@
     </header>
 
     <main>
-        <div class="tabs">
+        <!-- Connection-Only View (shown when not connected) -->
+        <div class="connection-view" id="connectionView">
+            <section class="card connection-card">
+                <h2>Connect to Device</h2>
+                <p class="subtext">Connect to your drone motor test device via Bluetooth to access all features.</p>
+                <div class="button-row">
+                    <button id="connectButton">Scan &amp; Connect</button>
+                </div>
+                <div id="status">
+                    <p id="statusText">Web Bluetooth not initialized.</p>
+                    <p id="deviceName">Device: N/A</p>
+                </div>
+                <div class="connection-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="scanAllDevices">
+                        <span>Show All BLE Devices</span>
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <!-- Tabbed Interface (shown when connected) -->
+        <div class="tabs" id="tabbedInterface" style="display: none;">
             <nav class="tab-list" role="tablist">
                 <button class="tab-button active" role="tab" data-tab="connection">Connection</button>
                 <button class="tab-button" role="tab" data-tab="profiles">Profiles</button>
@@ -213,53 +235,43 @@
     <!-- Mobile Bottom Navigation -->
     <nav class="bottom-nav" role="navigation">
         <button class="bottom-nav-item active" data-tab="connection" aria-label="Connection">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-                <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-                <circle cx="12" cy="20" r="1"/>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>Connect</span>
-        </button>
-        <button class="bottom-nav-item" data-tab="profiles" aria-label="Profiles">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="12" y1="18" x2="12" y2="12"/>
-                <line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
-            <span>Profiles</span>
+            <span>Monitor</span>
         </button>
         <button class="bottom-nav-item" data-tab="control" aria-label="Control">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <circle cx="12" cy="12" r="3"/>
-                <line x1="12" y1="1" x2="12" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="23"/>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <line x1="1" y1="12" x2="3" y2="12"/>
-                <line x1="21" y1="12" x2="23" y2="12"/>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="6" x2="4" y2="6.01"/>
+                <line x1="4" y1="12" x2="4" y2="12.01"/>
+                <line x1="4" y1="18" x2="4" y2="18.01"/>
+                <line x1="8" y1="6" x2="20" y2="6"/>
+                <line x1="8" y1="12" x2="20" y2="12"/>
+                <line x1="8" y1="18" x2="20" y2="18"/>
             </svg>
             <span>Control</span>
         </button>
+        <button class="bottom-nav-item" data-tab="profiles" aria-label="Config">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"/>
+            </svg>
+            <span>Config</span>
+        </button>
         <button class="bottom-nav-item" data-tab="results" aria-label="Results">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="20" x2="12" y2="10"/>
-                <line x1="18" y1="20" x2="18" y2="4"/>
-                <line x1="6" y1="20" x2="6" y2="16"/>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
             </svg>
             <span>Results</span>
         </button>
         <button class="bottom-nav-item" data-tab="logs" aria-label="Logs">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="9 18 15 12 9 6"/>
             </svg>
             <span>Logs</span>
         </button>

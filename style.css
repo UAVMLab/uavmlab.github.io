@@ -49,6 +49,43 @@ main {
     padding: 0 1.5rem;
 }
 
+/* Connection-Only View */
+.connection-view {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.connection-card {
+    text-align: center;
+}
+
+.connection-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.connection-card .subtext {
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+
+.connection-card #status {
+    margin-top: 1.5rem;
+    text-align: left;
+}
+
+.connection-options {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #30363d;
+}
+
+.connection-options .checkbox-label {
+    justify-content: center;
+    font-size: 0.85rem;
+}
+
 .tabs {
     background: #0d1117;
     border: 1px solid #30363d;
@@ -370,16 +407,17 @@ footer {
 
 /* Bottom Navigation (Mobile Only) */
 .bottom-nav {
-    display: none; /* Hidden by default, shown on mobile */
+    display: none; /* Hidden by default until connected */
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    background: #161b22;
-    border-top: 1px solid #30363d;
-    padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+    background: #1a2332;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.4rem 0 calc(0.4rem + env(safe-area-inset-bottom));
     z-index: 1000;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
 }
 
 .bottom-nav-item {
@@ -388,35 +426,39 @@ footer {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.5rem 0.25rem;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.5rem 0.25rem 0.4rem;
     background: transparent;
-    color: #8b949e;
+    color: #6b7c94;
     border: none;
-    border-radius: 8px;
-    font-size: 0.7rem;
+    border-radius: 0;
+    font-size: 0.65rem;
     font-weight: 500;
-    transition: color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+    letter-spacing: 0.01em;
+    transition: color 0.25s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .bottom-nav-item svg {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     stroke-width: 2;
-    transition: transform 0.2s ease;
+    transition: color 0.25s ease;
+    margin-bottom: 0.1rem;
 }
 
 .bottom-nav-item.active {
-    color: #0b5cff;
-    background: rgba(11, 92, 255, 0.1);
+    color: #4a9eff;
 }
 
 .bottom-nav-item.active svg {
-    transform: scale(1.1);
+    color: #4a9eff;
 }
 
 .bottom-nav-item:active:enabled {
-    transform: scale(0.95);
+    transform: scale(0.92);
+    transition: transform 0.1s ease;
 }
 
 /* Mobile-First Responsive Design */
@@ -453,6 +495,15 @@ footer {
         padding: 0 0.75rem 5rem; /* Extra bottom padding for bottom nav */
     }
 
+    .connection-view {
+        padding: 1rem;
+        max-width: 100%;
+    }
+
+    .connection-card {
+        padding: 2rem 1.5rem;
+    }
+
     .tabs {
         border-radius: 12px;
         margin-bottom: 1rem;
@@ -463,10 +514,7 @@ footer {
         display: none;
     }
 
-    /* Show bottom navigation */
-    .bottom-nav {
-        display: flex;
-    }
+    /* Bottom nav will be shown/hidden by JavaScript based on connection state */
 
     footer {
         padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom)); /* Space for bottom nav */
@@ -607,10 +655,7 @@ footer {
         display: none;
     }
 
-    /* Show bottom navigation */
-    .bottom-nav {
-        display: flex;
-    }
+    /* Bottom nav will be shown/hidden by JavaScript based on connection state */
 
     footer {
         padding: 1.5rem 1rem calc(5rem + env(safe-area-inset-bottom));

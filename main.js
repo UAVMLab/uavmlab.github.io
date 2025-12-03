@@ -70,26 +70,28 @@ const connectionOnlyElements = document.querySelectorAll('[data-connected-only]'
 const logBuffer = ['Ready.'];
 const MAX_LOG_LINES = 200;
 
-function initTabs() {
+function switchTab(tabName) {
     const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
     
-    function switchTab(tabName) {
-        // Update top tab buttons
-        tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
-        
-        // Update bottom nav items
-        bottomNavItems.forEach((item) => item.classList.toggle('active', item.dataset.tab === tabName));
-        
-        // Update panels
-        tabPanels.forEach((panel) => {
-            panel.classList.toggle('active', panel.id === `tab-${tabName}`);
-        });
-        
-        // Scroll to top on mobile
-        if (window.innerWidth <= 768) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+    // Update top tab buttons
+    tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+    
+    // Update bottom nav items
+    bottomNavItems.forEach((item) => item.classList.toggle('active', item.dataset.tab === tabName));
+    
+    // Update panels
+    tabPanels.forEach((panel) => {
+        panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+    });
+    
+    // Scroll to top on mobile
+    if (window.innerWidth <= 768) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+}
+
+function initTabs() {
+    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
     
     // Handle top tab buttons
     tabButtons.forEach((button) => {
@@ -106,9 +108,42 @@ function initTabs() {
     });
 }
 
+function toggleInterface(isConnected) {
+    const connectionView = document.getElementById('connectionView');
+    const tabbedInterface = document.getElementById('tabbedInterface');
+    const bottomNav = document.querySelector('.bottom-nav');
+
+    if (isConnected) {
+        // Show tabbed interface, hide connection view
+        connectionView.style.display = 'none';
+        tabbedInterface.style.display = 'block';
+        if (bottomNav) bottomNav.style.display = 'flex';
+        
+        // Switch to control tab on mobile after connection
+        if (window.innerWidth <= 768) {
+            setTimeout(() => {
+                switchTab('control');
+            }, 300);
+        }
+    } else {
+        // Show connection view, hide tabbed interface
+        connectionView.style.display = 'block';
+        tabbedInterface.style.display = 'none';
+        if (bottomNav) bottomNav.style.display = 'none';
+    }
+}
+
 function setStatus(message, isConnected = false) {
     statusText.textContent = message;
     statusText.style.color = isConnected ? '#28a745' : '#dc3545';
+    state.connected = isConnected;
+
+    document.querySelectorAll('[data-connected-only]').forEach((el) => {
+        el.disabled = !isConnected;
+    });
+
+    // Toggle between connection view and tabbed interface
+    toggleInterface(isConnected);
 }
 
 function setControlStatus(message, isPositive = true) {
