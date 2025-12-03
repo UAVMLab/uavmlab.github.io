@@ -1,74 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-    <meta name="theme-color" content="#0f172a" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>AeroDyne Motor Lab</title>
-    <link rel="manifest" href="manifest.json" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              gray: {
-                900: '#0f172a',
-                800: '#1e293b',
-                700: '#334155',
-              },
-              brand: {
-                500: '#0ea5e9', // Sky blue
-                600: '#0284c7',
-              }
-            },
-            fontFamily: {
-              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
-            }
-          },
-        },
-      }
-    </script>
-    <style>
-      /* Custom scrollbar for dark theme */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e293b;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #475569;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-      }
-      /* Prevent pull-to-refresh on mobile */
-      body {
-        overscroll-behavior-y: contain;
-        background-color: #0f172a;
-        color: #f8fafc;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Motor Lab</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-  <body>
-    <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
+<body>
+    <header>
+        <div class="header-inner">
+            <div>
+                <h1>Drone Motor Test Platform</h1>
+                <p>Control and evaluate UAV motors directly from your browser using Web Bluetooth.</p>
+            </div>
+            <div class="badge">BLE Lab</div>
+        </div>
+    </header>
+
+    <main>
+        <section class="card" id="connectionControls">
+            <h2>Connection</h2>
+            <div class="button-row">
+                <button id="connectButton">Scan &amp; Connect</button>
+                <button id="disconnectButton" disabled data-connected-only>Disconnect</button>
+            </div>
+            <div id="status">
+                <p id="statusText">Web Bluetooth not initialized.</p>
+                <p id="deviceName">Device: N/A</p>
+            </div>
+        </section>
+
+        <section class="card" id="deviceDetails">
+            <h2>Device Snapshot</h2>
+            <ul>
+                <li><strong>Firmware:</strong> <span id="firmwareVersion">--</span></li>
+                <li><strong>Battery:</strong> <span id="batteryLevel">--</span></li>
+                <li><strong>Temperature:</strong> <span id="temperature">--</span></li>
+            </ul>
+        </section>
+
+        <section class="card" id="configSection">
+            <h2>Configuration</h2>
+            <form id="configForm">
+                <label>
+                    Motor Count
+                    <input type="number" id="motorCount" min="1" max="8" value="4" required>
+                </label>
+                <label>
+                    Sampling Rate (Hz)
+                    <input type="number" id="samplingRate" min="10" max="1000" value="250" required>
+                </label>
+                <label>
+                    Max Throttle (%)
+                    <input type="number" id="maxThrottle" min="10" max="100" value="80" required>
+                </label>
+                <label>
+                    Test Duration (s)
+                    <input type="number" id="testDuration" min="1" max="300" value="30" required>
+                </label>
+                <div class="button-row">
+                    <button type="submit" id="sendConfigButton" disabled data-connected-only>Send Config</button>
+                    <button type="button" id="fetchConfig" disabled data-connected-only>Get Config</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card" id="flightControls">
+            <h2>Motor Controls</h2>
+            <div class="button-row">
+                <button id="armButton" class="warning" disabled data-connected-only>Arm</button>
+                <button id="disarmButton" class="neutral" disabled data-connected-only>Disarm</button>
+            </div>
+            <label class="slider">
+                Throttle (%): <span id="throttleValue">0</span>
+                <input type="range" id="throttleSlider" min="0" max="100" value="0" disabled data-connected-only>
+            </label>
+        </section>
+
+        <section class="card" id="testSection">
+            <h2>Test Runner</h2>
+            <div class="button-row">
+                <button id="runTestButton" class="success" disabled data-connected-only>Run Test</button>
+                <button id="stopTestButton" class="neutral" disabled data-connected-only>Stop Test</button>
+            </div>
+        </section>
+
+        <section class="card" id="logSection">
+            <h2>Command Log</h2>
+            <pre id="logOutput">Ready.</pre>
+        </section>
+    </main>
+
+    <footer>
+        <p>Requires Chrome/Edge on Android, ChromeOS, macOS, or Windows. GitHub Pages already serves HTTPS.</p>
+    </footer>
+
+    <script src="main.js"></script>
 </body>
 </html>
