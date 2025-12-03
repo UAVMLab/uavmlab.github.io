@@ -45,6 +45,52 @@ main {
     max-width: 1200px;
     margin: -2rem auto 3rem;
     padding: 0 1.5rem;
+}
+
+.tabs {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+}
+
+.tab-button {
+    flex: 1;
+    min-width: 140px;
+    padding: 0.85rem 1rem;
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab-button.active {
+    color: #f0f6fc;
+    background: #0d1117;
+}
+
+.tab-panel {
+    display: none;
+    padding: 1.5rem;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+.panel-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.25rem;
@@ -80,6 +126,27 @@ ul li {
     margin-bottom: 0.5rem;
 }
 
+.device-list li {
+    padding: 0.65rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.device-list li.active {
+    border-color: #0b5cff;
+    background: rgba(11, 92, 255, 0.15);
+}
+
+.subtext {
+    color: #8b949e;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
 form {
     display: grid;
     gap: 0.85rem;
@@ -94,12 +161,19 @@ label {
 
 input[type="number"],
 input[type="text"],
-input[type="range"] {
+input[type="range"],
+textarea,
+select {
     padding: 0.6rem;
     border-radius: 8px;
     border: 1px solid #30363d;
     background: #0d1117;
     color: #f0f6fc;
+    font-family: inherit;
+}
+
+textarea {
+    resize: vertical;
 }
 
 input[type="range"] {
@@ -148,12 +222,108 @@ button.success {
     background: #2ecc71;
 }
 
-#logSection {
-    grid-column: 1 / -1;
+button.ghost {
+    flex: unset;
+    width: 100%;
+    margin-top: 1rem;
+    background: transparent;
+    border: 1px dashed #30363d;
+    color: #f0f6fc;
+}
+
+.profile-table {
+    margin-top: 1rem;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+}
+
+.profile-table-header,
+.profile-table-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #30363d;
+}
+
+.profile-table-header {
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.profile-table-row.active {
+    background: rgba(11, 92, 255, 0.12);
+    border-left: 3px solid #0b5cff;
+}
+
+.profile-table-body .empty,
+.device-list .empty {
+    padding: 0.5rem 0;
+    color: #8b949e;
+}
+
+.profile-table-row button {
+    flex: unset;
+    min-width: unset;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.85rem;
+}
+
+.metric {
+    padding: 1rem;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    background: #0d1117;
+}
+
+.metric h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #8b949e;
+}
+
+.metric p {
+    margin: 0.35rem 0 0;
+    font-size: 1.4rem;
+}
+
+#controlStatus {
+    margin: 0;
+    font-size: 1rem;
+    color: #8b949e;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+figure {
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    background: #0d1117;
+}
+
+figcaption {
+    font-size: 0.9rem;
+    color: #8b949e;
+    margin-bottom: 0.5rem;
 }
 
 #logOutput {
-    height: 220px;
+    height: 320px;
     margin: 0;
     padding: 1rem;
     border: 1px solid #30363d;
@@ -178,5 +348,10 @@ footer {
 
     button {
         width: 100%;
+    }
+
+    .profile-table-header,
+    .profile-table-row {
+        grid-template-columns: 1fr;
     }
 }

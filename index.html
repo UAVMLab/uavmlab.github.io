@@ -14,82 +14,185 @@
                 <h1>Drone Motor Test Platform</h1>
                 <p>Control and evaluate UAV motors directly from your browser using Web Bluetooth.</p>
             </div>
-            <div class="badge">BLE Lab</div>
+            <div class="badge">UAVMLab</div>
         </div>
     </header>
 
     <main>
-        <section class="card" id="connectionControls">
-            <h2>Connection</h2>
-            <div class="button-row">
-                <button id="connectButton">Scan &amp; Connect</button>
-                <button id="disconnectButton" disabled data-connected-only>Disconnect</button>
-            </div>
-            <div id="status">
-                <p id="statusText">Web Bluetooth not initialized.</p>
-                <p id="deviceName">Device: N/A</p>
-            </div>
-        </section>
+        <div class="tabs">
+            <nav class="tab-list" role="tablist">
+                <button class="tab-button active" role="tab" data-tab="connection">Connection</button>
+                <button class="tab-button" role="tab" data-tab="profiles">Profiles</button>
+                <button class="tab-button" role="tab" data-tab="control">Control</button>
+                <button class="tab-button" role="tab" data-tab="results">Results</button>
+                <button class="tab-button" role="tab" data-tab="logs">Logs</button>
+            </nav>
 
-        <section class="card" id="deviceDetails">
-            <h2>Device Snapshot</h2>
-            <ul>
-                <li><strong>Firmware:</strong> <span id="firmwareVersion">--</span></li>
-                <li><strong>Battery:</strong> <span id="batteryLevel">--</span></li>
-                <li><strong>Temperature:</strong> <span id="temperature">--</span></li>
-            </ul>
-        </section>
+            <section class="tab-panel active" id="tab-connection" role="tabpanel">
+                <div class="panel-grid">
+                    <section class="card">
+                        <h2>Connection Status</h2>
+                        <div class="button-row">
+                            <button id="connectButton">Scan &amp; Connect</button>
+                            <button id="disconnectButton" disabled data-connected-only>Disconnect</button>
+                        </div>
+                        <div id="status">
+                            <p id="statusText">Web Bluetooth not initialized.</p>
+                            <p id="deviceName">Device: N/A</p>
+                        </div>
+                    </section>
 
-        <section class="card" id="configSection">
-            <h2>Configuration</h2>
-            <form id="configForm">
-                <label>
-                    Motor Count
-                    <input type="number" id="motorCount" min="1" max="8" value="4" required>
-                </label>
-                <label>
-                    Sampling Rate (Hz)
-                    <input type="number" id="samplingRate" min="10" max="1000" value="250" required>
-                </label>
-                <label>
-                    Max Throttle (%)
-                    <input type="number" id="maxThrottle" min="10" max="100" value="80" required>
-                </label>
-                <label>
-                    Test Duration (s)
-                    <input type="number" id="testDuration" min="1" max="300" value="30" required>
-                </label>
-                <div class="button-row">
-                    <button type="submit" id="sendConfigButton" disabled data-connected-only>Send Config</button>
-                    <button type="button" id="fetchConfig" disabled data-connected-only>Get Config</button>
+                    <section class="card">
+                        <h2>Available Devices</h2>
+                        <p class="subtext">Due to browser security, device list populates after you click Scan &amp; Connect.</p>
+                        <ul id="deviceList" class="device-list">
+                            <li class="empty">No devices discovered yet.</li>
+                        </ul>
+                    </section>
+
+                    <section class="card">
+                        <h2>Device Snapshot</h2>
+                        <ul>
+                            <li><strong>Firmware:</strong> <span id="firmwareVersion">--</span></li>
+                            <li><strong>Battery:</strong> <span id="batteryLevel">--</span></li>
+                            <li><strong>Temperature:</strong> <span id="temperature">--</span></li>
+                        </ul>
+                    </section>
                 </div>
-            </form>
-        </section>
+            </section>
 
-        <section class="card" id="flightControls">
-            <h2>Motor Controls</h2>
-            <div class="button-row">
-                <button id="armButton" class="warning" disabled data-connected-only>Arm</button>
-                <button id="disarmButton" class="neutral" disabled data-connected-only>Disarm</button>
-            </div>
-            <label class="slider">
-                Throttle (%): <span id="throttleValue">0</span>
-                <input type="range" id="throttleSlider" min="0" max="100" value="0" disabled data-connected-only>
-            </label>
-        </section>
+            <section class="tab-panel" id="tab-profiles" role="tabpanel">
+                <div class="panel-grid">
+                    <section class="card">
+                        <h2>Profiles</h2>
+                        <div class="button-row">
+                            <button id="loadProfilesButton" disabled data-connected-only>Load from Device</button>
+                            <button id="syncProfileButton" disabled data-connected-only>Push Selected</button>
+                        </div>
+                        <div class="profile-table">
+                            <div class="profile-table-header">
+                                <span>Name</span>
+                                <span>Motors</span>
+                                <span>Prop</span>
+                                <span></span>
+                            </div>
+                            <div id="profileRows" class="profile-table-body">
+                                <p class="empty">No profiles defined.</p>
+                            </div>
+                        </div>
+                        <button id="addProfileButton" class="ghost">+ Add Profile</button>
+                    </section>
 
-        <section class="card" id="testSection">
-            <h2>Test Runner</h2>
-            <div class="button-row">
-                <button id="runTestButton" class="success" disabled data-connected-only>Run Test</button>
-                <button id="stopTestButton" class="neutral" disabled data-connected-only>Stop Test</button>
-            </div>
-        </section>
+                    <section class="card">
+                        <h2>Edit Profile</h2>
+                        <form id="profileForm">
+                            <label>Name<input type="text" id="profileName" required></label>
+                            <label>Motor Details<textarea id="motorDetails" rows="2" required></textarea></label>
+                            <label>Propeller Details<textarea id="propDetails" rows="2" required></textarea></label>
+                            <label>Other Parameters<textarea id="otherParams" rows="3"></textarea></label>
+                            <div class="button-row">
+                                <button type="submit" id="saveProfileButton">Save Profile</button>
+                                <button type="button" id="deleteProfileButton" class="neutral">Delete</button>
+                            </div>
+                        </form>
+                    </section>
+                </div>
+            </section>
 
-        <section class="card" id="logSection">
-            <h2>Command Log</h2>
-            <pre id="logOutput">Ready.</pre>
-        </section>
+            <section class="tab-panel" id="tab-control" role="tabpanel">
+                <div class="panel-grid">
+                    <section class="card">
+                        <h2>Control Actions</h2>
+                        <div class="button-row">
+                            <button id="armButton" class="warning" disabled data-connected-only>Arm</button>
+                            <button id="disarmButton" class="neutral" disabled data-connected-only>Disarm</button>
+                        </div>
+                        <label class="slider">
+                            Throttle (%): <span id="throttleValue">0</span>
+                            <input type="range" id="throttleSlider" min="0" max="100" value="0" disabled data-connected-only>
+                        </label>
+                        <label>
+                            Test Duration (s)
+                            <input type="number" id="testDuration" min="1" max="600" value="30" disabled data-connected-only>
+                        </label>
+                        <label class="select">
+                            Test Mode
+                            <select id="testMode" disabled data-connected-only>
+                                <option value="step">Step Response</option>
+                                <option value="sweep">Sweep</option>
+                                <option value="hover">Hover Hold</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </label>
+                        <div class="button-row">
+                            <button id="runTestButton" class="success" disabled data-connected-only>Run Test</button>
+                            <button id="stopTestButton" class="neutral" disabled data-connected-only>Stop Test</button>
+                        </div>
+                    </section>
+
+                    <section class="card telemetry">
+                        <h2>Live Telemetry</h2>
+                        <div class="metrics-grid">
+                            <article class="metric">
+                                <h3>Voltage</h3>
+                                <p id="voltageMetric">--</p>
+                            </article>
+                            <article class="metric">
+                                <h3>Current</h3>
+                                <p id="currentMetric">--</p>
+                            </article>
+                            <article class="metric">
+                                <h3>RPM</h3>
+                                <p id="rpmMetric">--</p>
+                            </article>
+                            <article class="metric">
+                                <h3>ESC Temp</h3>
+                                <p id="escTempMetric">--</p>
+                            </article>
+                            <article class="metric">
+                                <h3>Motor Temp</h3>
+                                <p id="motorTempMetric">--</p>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <h2>Status</h2>
+                        <p id="controlStatus">Awaiting connection.</p>
+                    </section>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="tab-results" role="tabpanel">
+                <div class="panel-grid">
+                    <section class="card">
+                        <h2>Performance Graphs</h2>
+                        <div class="chart-grid">
+                            <figure>
+                                <figcaption>Power Efficiency</figcaption>
+                                <canvas id="powerChart" width="300" height="160"></canvas>
+                            </figure>
+                            <figure>
+                                <figcaption>Thrust Efficiency</figcaption>
+                                <canvas id="thrustChart" width="300" height="160"></canvas>
+                            </figure>
+                            <figure>
+                                <figcaption>Thermal Profile</figcaption>
+                                <canvas id="thermalChart" width="300" height="160"></canvas>
+                            </figure>
+                        </div>
+                        <p class="subtext">Graphs update after each test run.</p>
+                    </section>
+                </div>
+            </section>
+
+            <section class="tab-panel" id="tab-logs" role="tabpanel">
+                <section class="card" id="logSection">
+                    <h2>Logs</h2>
+                    <pre id="logOutput">Ready.</pre>
+                </section>
+            </section>
+        </div>
     </main>
 
     <footer>
