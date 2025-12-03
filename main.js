@@ -425,10 +425,10 @@ function renderProfiles() {
             row.classList.add('active');
         }
         row.innerHTML = `
-            <span>${profile.name}</span>
-            <span>${profile.motorDetails || '—'}</span>
-            <span>${profile.propDetails || '—'}</span>
-            <span><button type="button" data-profile-id="${profile.id}">Select</button></span>
+            <div data-label="Name">${profile.name}</div>
+            <div data-label="Motors">${profile.motorDetails || '—'}</div>
+            <div data-label="Prop">${profile.propDetails || '—'}</div>
+            <div><button type="button" data-profile-id="${profile.id}">Select</button></div>
         `;
 
         row.querySelector('button').addEventListener('click', () => selectProfile(profile.id));
