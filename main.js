@@ -64,6 +64,7 @@ const escTempMetric = document.getElementById('escTempMetric');
 const motorTempMetric = document.getElementById('motorTempMetric');
 const logOutput = document.getElementById('logOutput');
 const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
+const forceArmCheckbox = document.getElementById('forceArmCheckbox');
 const connectionOnlyElements = document.querySelectorAll('[data-connected-only]');
 
 const logBuffer = ['Ready.'];
@@ -245,19 +246,18 @@ function ensureCommandChannel() {
     }
 }
 
-async function sendCommand(type, payload = {}) {
+async function sendCommand(cmd, additionalData = {}) {
     ensureCommandChannel();
     const packet = {
-        type,
-        payload,
-        timestamp: Date.now()
+        cmd,
+        ...additionalData
     };
     const encoded = encoder.encode(JSON.stringify(packet));
     try {
         await commandCharacteristic.writeValue(encoded);
-        appendLog(`→ ${type} ${JSON.stringify(payload)}`);
+        appendLog(`→ ${JSON.stringify(packet)}`);
     } catch (error) {
-        appendLog(`Command failed (${type}): ${error.message}`);
+        appendLog(`Command failed (${cmd}): ${error.message}`);
         throw error;
     }
 }
@@ -290,7 +290,10 @@ function handleTelemetry(event) {
                 setControlStatus(message.payload?.message || 'Status update.', !!message.payload?.ok);
                 break;
             case 'ACK':
-                setStatus(message.payload?.status || 'Command acknowledged.', true);
+            case 'ack':
+                const ackMsg = message.message || message.payload?.status || 'Command acknowledged.';
+                setStatus(ackMsg, true);
+                setControlStatus(ackMsg, true);
                 break;
             case 'ERROR':
                 setStatus(message.payload?.message || 'Device reported an error.', false);
@@ -539,11 +542,26 @@ syncProfileButton.addEventListener('click', () => {
     }
 });
 
+forceArmCheckbox.addEventListener('change', (event) => {
+    if (event.target.checked) {
+        const confirmed = confirm(
+            '⚠️ WARNING: Force Arm Override\n\n' +
+            'You are about to enable FORCE ARM mode. This bypasses safety checks and can be dangerous.\n\n' +
+            'Are you sure you want to proceed?'
+        );
+        if (!confirmed) {
+            event.target.checked = false;
+        }
+    }
+});
+
 armButton.addEventListener('click', async () => {
     try {
-        await sendCommand('ARM');
-        setStatus('Arming motors...', true);
-        setControlStatus('Motors arming...');
+        const isForceArm = forceArmCheckbox?.checked || false;
+        const cmd = isForceArm ? 'force_arm' : 'arm';
+        await sendCommand(cmd);
+        setStatus(`${isForceArm ? 'Force ' : ''}Arming motors...`, true);
+        setControlStatus(`Motors ${isForceArm ? 'force ' : ''}arming...`);
     } catch (error) {
         setStatus(`Arm failed: ${error.message}`);
         setControlStatus(`Arm failed: ${error.message}`, false);
@@ -552,7 +570,7 @@ armButton.addEventListener('click', async () => {
 
 disarmButton.addEventListener('click', async () => {
     try {
-        await sendCommand('DISARM');
+        await sendCommand('disarm');
         setStatus('Disarming motors...', true);
         setControlStatus('Motors disarming...');
     } catch (error) {
