@@ -1,7 +1,7 @@
 // Connection tab module
 import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUID, APP_DISCOVERY_SERVICE_UUID, APP_INFO_CHARACTERISTIC_UUID, decoder } from './constants.js';
 import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from './state.js';
-import { setStatus, appendLog } from './utils.js';
+import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
 
 export function initConnectionTab() {
     const connectButton = document.getElementById('connectButton');
@@ -46,6 +46,7 @@ function renderDeviceList() {
 }
 
 async function connectDevice() {
+    vibrate(20); // Light vibration on button press
     const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
     const deviceNameDisplay = document.getElementById('deviceName');
     
@@ -97,19 +98,23 @@ async function connectDevice() {
         state.connectedDeviceId = device.id;
         deviceNameDisplay.textContent = `Device: ${device.name || 'Unknown'}`;
         setStatus(`Connected to ${device.name}`, true);
+        vibratePattern([50, 50, 100]); // Success pattern
         appendLog('Connection established successfully!');
         renderDeviceList();
     } catch (error) {
         setStatus(`Connection failed: ${error.message}`);
+        vibratePattern([200]); // Error vibration
         appendLog(`Error: ${error.message}`);
         console.error(error);
     }
 }
 
 async function disconnectDevice() {
+    vibrate(20); // Light vibration on button press
     const device = getBleDevice();
     if (device && device.gatt.connected) {
         device.gatt.disconnect();
+        vibrate(50); // Confirm disconnect
         appendLog('Disconnect requested by user.');
     }
 }

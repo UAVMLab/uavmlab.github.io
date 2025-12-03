@@ -1,5 +1,5 @@
 // Navigation bar module
-import { switchTab } from './utils.js';
+import { switchTab, vibrate } from './utils.js';
 
 export function initNavigation() {
     const tabButtons = document.querySelectorAll('.tab-button');
@@ -8,6 +8,7 @@ export function initNavigation() {
     // Handle top tab buttons
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => {
+            vibrate(15); // Light haptic feedback for tab switch
             switchTab(button.dataset.tab);
         });
     });
@@ -15,6 +16,7 @@ export function initNavigation() {
     // Handle bottom nav items
     bottomNavItems.forEach((item) => {
         item.addEventListener('click', () => {
+            vibrate(15); // Light haptic feedback for tab switch
             switchTab(item.dataset.tab);
         });
     });

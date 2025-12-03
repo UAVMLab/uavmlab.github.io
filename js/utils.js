@@ -71,3 +71,16 @@ export function appendLog(message) {
     logOutput.textContent = logBuffer.join('\n');
     logOutput.scrollTop = logOutput.scrollHeight;
 }
+
+// Haptic feedback utility functions
+export function vibrate(duration = 10) {
+    if ('vibrate' in navigator) {
+        navigator.vibrate(duration);
+    }
+}
+
+export function vibratePattern(pattern) {
+    if ('vibrate' in navigator) {
+        navigator.vibrate(pattern);
+    }
+}
