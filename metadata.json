@@ -1,0 +1,5 @@
+{
+  "name": "AeroDyne Motor Lab",
+  "description": "Professional BLDC motor analysis and control suite for drone propulsion testing. Features real-time telemetry, thrust measurement, and ESC configuration via Bluetooth LE.",
+  "requestFramePermissions": []
+}
