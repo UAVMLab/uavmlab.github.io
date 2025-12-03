@@ -1,6 +1,11 @@
-const DRONE_SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
-const COMMAND_CHARACTERISTIC_UUID = '12345678-1234-5678-1234-56789abcdef1';
-const TELEMETRY_CHARACTERISTIC_UUID = '12345678-1234-5678-1234-56789abcdef2';
+// Nordic UART Service (NUS) UUIDs
+const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX_CHARACTERISTIC_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Write to device
+const NUS_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Notify from device
+
+// App Discovery Service UUIDs
+const APP_DISCOVERY_SERVICE_UUID = 'f0e00001-7a2c-4e9b-a5cf-2b1a9d5ed001';
+const APP_INFO_CHARACTERISTIC_UUID = 'f0e00002-7a2c-4e9b-a5cf-2b1a9d5ed001'; // Read-only
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -174,11 +179,11 @@ async function connectDevice() {
         const requestOptions = scanAll
             ? {
                 acceptAllDevices: true,
-                optionalServices: [DRONE_SERVICE_UUID, 'battery_service', 'device_information']
+                optionalServices: [NUS_SERVICE_UUID, APP_DISCOVERY_SERVICE_UUID, 'battery_service', 'device_information']
               }
             : {
-                filters: [{ services: [DRONE_SERVICE_UUID] }],
-                optionalServices: [DRONE_SERVICE_UUID]
+                filters: [{ services: [NUS_SERVICE_UUID] }],
+                optionalServices: [NUS_SERVICE_UUID, APP_DISCOVERY_SERVICE_UUID]
               };
 
         bleDevice = await navigator.bluetooth.requestDevice(requestOptions);
@@ -189,15 +194,21 @@ async function connectDevice() {
         setStatus('Connecting to GATT server...');
 
         gattServer = await bleDevice.gatt.connect();
-        const service = await gattServer.getPrimaryService(DRONE_SERVICE_UUID);
-        commandCharacteristic = await service.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
+        const nusService = await gattServer.getPrimaryService(NUS_SERVICE_UUID);
+        commandCharacteristic = await nusService.getCharacteristic(NUS_RX_CHARACTERISTIC_UUID);
+        telemetryCharacteristic = await nusService.getCharacteristic(NUS_TX_CHARACTERISTIC_UUID);
+        await telemetryCharacteristic.startNotifications();
+        telemetryCharacteristic.addEventListener('characteristicvaluechanged', handleTelemetry);
 
+        // Try to read App Discovery info
         try {
-            telemetryCharacteristic = await service.getCharacteristic(TELEMETRY_CHARACTERISTIC_UUID);
-            await telemetryCharacteristic.startNotifications();
-            telemetryCharacteristic.addEventListener('characteristicvaluechanged', handleTelemetry);
-        } catch (telemetryError) {
-            appendLog(`Telemetry unavailable: ${telemetryError.message}`);
+            const appService = await gattServer.getPrimaryService(APP_DISCOVERY_SERVICE_UUID);
+            const appInfoChar = await appService.getCharacteristic(APP_INFO_CHARACTERISTIC_UUID);
+            const appInfoValue = await appInfoChar.readValue();
+            const appInfo = decoder.decode(appInfoValue);
+            appendLog(`App Info: ${appInfo}`);
+        } catch (appError) {
+            appendLog(`App Discovery service unavailable: ${appError.message}`);
         }
 
         state.connectedDeviceId = bleDevice.id;
