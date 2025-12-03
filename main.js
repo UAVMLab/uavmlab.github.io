@@ -71,13 +71,37 @@ const logBuffer = ['Ready.'];
 const MAX_LOG_LINES = 200;
 
 function initTabs() {
+    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
+    
+    function switchTab(tabName) {
+        // Update top tab buttons
+        tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+        
+        // Update bottom nav items
+        bottomNavItems.forEach((item) => item.classList.toggle('active', item.dataset.tab === tabName));
+        
+        // Update panels
+        tabPanels.forEach((panel) => {
+            panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+        });
+        
+        // Scroll to top on mobile
+        if (window.innerWidth <= 768) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+    
+    // Handle top tab buttons
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => {
-            const target = button.dataset.tab;
-            tabButtons.forEach((btn) => btn.classList.toggle('active', btn === button));
-            tabPanels.forEach((panel) => {
-                panel.classList.toggle('active', panel.id === `tab-${target}`);
-            });
+            switchTab(button.dataset.tab);
+        });
+    });
+    
+    // Handle bottom nav items
+    bottomNavItems.forEach((item) => {
+        item.addEventListener('click', () => {
+            switchTab(item.dataset.tab);
         });
     });
 }

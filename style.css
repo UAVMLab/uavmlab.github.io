@@ -368,6 +368,57 @@ footer {
     color: rgba(255, 255, 255, 0.6);
 }
 
+/* Bottom Navigation (Mobile Only) */
+.bottom-nav {
+    display: none; /* Hidden by default, shown on mobile */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+    z-index: 1000;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.bottom-nav-item {
+    flex: 1;
+    min-width: unset;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.25rem;
+    background: transparent;
+    color: #8b949e;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    transition: color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+
+.bottom-nav-item svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2;
+    transition: transform 0.2s ease;
+}
+
+.bottom-nav-item.active {
+    color: #0b5cff;
+    background: rgba(11, 92, 255, 0.1);
+}
+
+.bottom-nav-item.active svg {
+    transform: scale(1.1);
+}
+
+.bottom-nav-item:active:enabled {
+    transform: scale(0.95);
+}
+
 /* Mobile-First Responsive Design */
 
 /* Small Mobile Devices (portrait phones) */
@@ -398,36 +449,27 @@ footer {
     }
 
     main {
-        margin: -1.5rem auto 2rem;
-        padding: 0 0.75rem;
+        margin: -1.5rem auto 0;
+        padding: 0 0.75rem 5rem; /* Extra bottom padding for bottom nav */
     }
 
     .tabs {
         border-radius: 12px;
+        margin-bottom: 1rem;
     }
 
+    /* Hide top tab navigation on mobile */
     .tab-list {
-        flex-direction: column;
-        border-bottom: none;
+        display: none;
     }
 
-    .tab-button {
-        flex: none;
-        width: 100%;
-        min-width: unset;
-        padding: 1rem;
-        text-align: left;
-        border-bottom: 1px solid #30363d;
-        font-size: 0.9rem;
+    /* Show bottom navigation */
+    .bottom-nav {
+        display: flex;
     }
 
-    .tab-button:last-child {
-        border-bottom: none;
-    }
-
-    .tab-button.active {
-        border-left: 3px solid #0b5cff;
-        padding-left: calc(1rem - 3px);
+    footer {
+        padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom)); /* Space for bottom nav */
     }
 
     .tab-panel {
@@ -556,18 +598,22 @@ footer {
     }
 
     main {
-        margin: -1.75rem auto 2.5rem;
-        padding: 0 1rem;
+        margin: -1.75rem auto 0;
+        padding: 0 1rem 5rem; /* Extra bottom padding for bottom nav */
     }
 
+    /* Hide top tab navigation on tablet */
     .tab-list {
-        flex-wrap: wrap;
+        display: none;
     }
 
-    .tab-button {
-        flex: 1 1 calc(50% - 0.5rem);
-        min-width: 140px;
-        padding: 0.9rem;
+    /* Show bottom navigation */
+    .bottom-nav {
+        display: flex;
+    }
+
+    footer {
+        padding: 1.5rem 1rem calc(5rem + env(safe-area-inset-bottom));
     }
 
     .tab-panel {
