@@ -43,8 +43,14 @@
                     </section>
 
                     <section class="card">
-                        <h2>Available Devices</h2>
-                        <p class="subtext">Due to browser security, device list populates after you click Scan &amp; Connect.</p>
+                        <h2>Device History</h2>
+                        <p class="subtext">Devices you've connected to will appear here.</p>
+                        <div class="button-row">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="scanAllDevices">
+                                <span>Show All BLE Devices (not just drone service)</span>
+                            </label>
+                        </div>
                         <ul id="deviceList" class="device-list">
                             <li class="empty">No devices discovered yet.</li>
                         </ul>

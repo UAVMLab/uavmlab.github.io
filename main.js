@@ -58,6 +58,7 @@ const rpmMetric = document.getElementById('rpmMetric');
 const escTempMetric = document.getElementById('escTempMetric');
 const motorTempMetric = document.getElementById('motorTempMetric');
 const logOutput = document.getElementById('logOutput');
+const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
 const connectionOnlyElements = document.querySelectorAll('[data-connected-only]');
 
 const logBuffer = ['Ready.'];
@@ -166,13 +167,21 @@ async function connectDevice() {
     }
 
     try {
-        setStatus('Scanning for devices...');
+        setStatus('Opening device picker...');
         connectButton.disabled = true;
 
-        bleDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [DRONE_SERVICE_UUID] }],
-            optionalServices: [DRONE_SERVICE_UUID]
-        });
+        const scanAll = scanAllDevicesCheckbox?.checked || false;
+        const requestOptions = scanAll
+            ? {
+                acceptAllDevices: true,
+                optionalServices: [DRONE_SERVICE_UUID, 'battery_service', 'device_information']
+              }
+            : {
+                filters: [{ services: [DRONE_SERVICE_UUID] }],
+                optionalServices: [DRONE_SERVICE_UUID]
+              };
+
+        bleDevice = await navigator.bluetooth.requestDevice(requestOptions);
 
         rememberDevice(bleDevice);
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
