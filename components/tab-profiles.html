@@ -1,0 +1,37 @@
+<section class="tab-panel" id="tab-profiles" role="tabpanel">
+    <div class="panel-grid">
+        <section class="card">
+            <h2>Profiles</h2>
+            <div class="button-row">
+                <button id="loadProfilesButton" disabled data-connected-only>Load from Device</button>
+                <button id="syncProfileButton" disabled data-connected-only>Push Selected</button>
+            </div>
+            <div class="profile-table">
+                <div class="profile-table-header">
+                    <span>Name</span>
+                    <span>Motors</span>
+                    <span>Prop</span>
+                    <span></span>
+                </div>
+                <div id="profileRows" class="profile-table-body">
+                    <p class="empty">No profiles defined.</p>
+                </div>
+            </div>
+            <button id="addProfileButton" class="ghost">+ Add Profile</button>
+        </section>
+
+        <section class="card">
+            <h2>Edit Profile</h2>
+            <form id="profileForm">
+                <label>Name<input type="text" id="profileName" required></label>
+                <label>Motor Details<textarea id="motorDetails" rows="2" required></textarea></label>
+                <label>Propeller Details<textarea id="propDetails" rows="2" required></textarea></label>
+                <label>Other Parameters<textarea id="otherParams" rows="3"></textarea></label>
+                <div class="button-row">
+                    <button type="submit" id="saveProfileButton">Save Profile</button>
+                    <button type="button" id="deleteProfileButton" class="neutral">Delete</button>
+                </div>
+            </form>
+        </section>
+    </div>
+</section>

@@ -1,0 +1,20 @@
+<!-- Connection-Only View (shown when not connected) -->
+<div class="connection-view" id="connectionView">
+    <section class="card connection-card">
+        <h2>Connect to Device</h2>
+        <p class="subtext">Connect to your drone motor test device via Bluetooth to access all features.</p>
+        <div class="button-row">
+            <button id="connectButton">Scan &amp; Connect</button>
+        </div>
+        <div id="status">
+            <p id="statusText">Web Bluetooth not initialized.</p>
+            <p id="deviceName">Device: N/A</p>
+        </div>
+        <div class="connection-options">
+            <label class="checkbox-label">
+                <input type="checkbox" id="scanAllDevices">
+                <span>Show All BLE Devices</span>
+            </label>
+        </div>
+    </section>
+</div>

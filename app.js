@@ -1,0 +1,43 @@
+// Main application entry point
+import { loadComponents } from './js/componentLoader.js';
+import { setStatus } from './js/utils.js';
+import { initNavigation } from './js/navigation.js';
+import { initConnectionTab } from './js/connectionTab.js';
+import { initProfilesTab } from './js/profilesTab.js';
+import { initControlTab } from './js/controlTab.js';
+import { initResultsTab } from './js/resultsTab.js';
+import { initLogsTab } from './js/logsTab.js';
+
+// Initialize all modules
+async function initApp() {
+    // Load HTML components first
+    await loadComponents();
+    
+    // Initialize navigation
+    initNavigation();
+    
+    // Initialize each tab
+    initConnectionTab();
+    initProfilesTab();
+    initControlTab();
+    initResultsTab();
+    initLogsTab();
+    
+    // Check Web Bluetooth support
+    if (navigator.bluetooth) {
+        setStatus('Web Bluetooth ready. Click Connect to begin.');
+    } else {
+        setStatus('Web Bluetooth is NOT supported in this browser/platform. Try Chrome on Android, ChromeOS, or macOS/Windows.');
+        const connectButton = document.getElementById('connectButton');
+        if (connectButton) {
+            connectButton.disabled = true;
+        }
+    }
+}
+
+// Start the application when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}

@@ -1,0 +1,67 @@
+<section class="tab-panel" id="tab-control" role="tabpanel">
+    <div class="panel-grid">
+        <section class="card">
+            <h2>Control Actions</h2>
+            <div class="button-row">
+                <button id="armButton" class="warning" disabled data-connected-only>Arm</button>
+                <label class="checkbox-label" style="flex: 0; min-width: auto;">
+                    <input type="checkbox" id="forceArmCheckbox" disabled data-connected-only>
+                    <span style="font-size: 0.8rem;">Force</span>
+                </label>
+                <button id="disarmButton" class="neutral" disabled data-connected-only>Disarm</button>
+            </div>
+            <label class="slider">
+                Throttle (%): <span id="throttleValue">0</span>
+                <input type="range" id="throttleSlider" min="0" max="100" value="0" disabled data-connected-only>
+            </label>
+            <label>
+                Test Duration (s)
+                <input type="number" id="testDuration" min="1" max="600" value="30" disabled data-connected-only>
+            </label>
+            <label class="select">
+                Test Mode
+                <select id="testMode" disabled data-connected-only>
+                    <option value="step">Step Response</option>
+                    <option value="sweep">Sweep</option>
+                    <option value="hover">Hover Hold</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </label>
+            <div class="button-row">
+                <button id="runTestButton" class="success" disabled data-connected-only>Run Test</button>
+                <button id="stopTestButton" class="neutral" disabled data-connected-only>Stop Test</button>
+            </div>
+        </section>
+
+        <section class="card telemetry">
+            <h2>Live Telemetry</h2>
+            <div class="metrics-grid">
+                <article class="metric">
+                    <h3>Voltage</h3>
+                    <p id="voltageMetric">--</p>
+                </article>
+                <article class="metric">
+                    <h3>Current</h3>
+                    <p id="currentMetric">--</p>
+                </article>
+                <article class="metric">
+                    <h3>RPM</h3>
+                    <p id="rpmMetric">--</p>
+                </article>
+                <article class="metric">
+                    <h3>ESC Temp</h3>
+                    <p id="escTempMetric">--</p>
+                </article>
+                <article class="metric">
+                    <h3>Motor Temp</h3>
+                    <p id="motorTempMetric">--</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Status</h2>
+            <p id="controlStatus">Awaiting connection.</p>
+        </section>
+    </div>
+</section>

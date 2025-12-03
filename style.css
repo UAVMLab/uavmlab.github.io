@@ -45,8 +45,8 @@ header p {
 
 main {
     max-width: 1200px;
-    margin: -2rem auto 3rem;
-    padding: 0 1.5rem;
+    margin: -2rem auto 0;
+    padding: 0 1.5rem 5rem; /* Bottom padding for bottom nav on all devices */
 }
 
 /* Connection-Only View */
@@ -95,7 +95,7 @@ main {
 }
 
 .tab-list {
-    display: flex;
+    display: none; /* Hidden on all devices, use bottom nav instead */
     flex-wrap: wrap;
     background: #161b22;
     border-bottom: 1px solid #30363d;
@@ -401,13 +401,13 @@ figcaption {
 
 footer {
     text-align: center;
-    padding: 2rem 1rem 3rem;
+    padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom));
     color: rgba(255, 255, 255, 0.6);
 }
 
-/* Bottom Navigation (Mobile Only) */
+/* Bottom Navigation (All Devices) */
 .bottom-nav {
-    display: none; /* Hidden by default until connected */
+    display: none; /* Hidden by default until connected, then shown via JS */
     position: fixed;
     bottom: 0;
     left: 0;
@@ -509,12 +509,7 @@ footer {
         margin-bottom: 1rem;
     }
 
-    /* Hide top tab navigation on mobile */
-    .tab-list {
-        display: none;
-    }
-
-    /* Bottom nav will be shown/hidden by JavaScript based on connection state */
+    /* Tab list already hidden globally */
 
     footer {
         padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom)); /* Space for bottom nav */
@@ -650,12 +645,7 @@ footer {
         padding: 0 1rem 5rem; /* Extra bottom padding for bottom nav */
     }
 
-    /* Hide top tab navigation on tablet */
-    .tab-list {
-        display: none;
-    }
-
-    /* Bottom nav will be shown/hidden by JavaScript based on connection state */
+    /* Tab list already hidden globally */
 
     footer {
         padding: 1.5rem 1rem calc(5rem + env(safe-area-inset-bottom));

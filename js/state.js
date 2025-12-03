@@ -1,0 +1,51 @@
+// Global application state
+export const state = {
+    discoveredDevices: [],
+    connectedDeviceId: null,
+    profiles: [],
+    selectedProfileId: null,
+    lastTestResults: {
+        power: [],
+        thrust: [],
+        thermal: []
+    },
+    connected: false
+};
+
+// BLE connection state
+export let bleDevice = null;
+export let gattServer = null;
+export let commandCharacteristic = null;
+export let telemetryCharacteristic = null;
+
+export function setBleDevice(device) {
+    bleDevice = device;
+}
+
+export function setGattServer(server) {
+    gattServer = server;
+}
+
+export function setCommandCharacteristic(characteristic) {
+    commandCharacteristic = characteristic;
+}
+
+export function setTelemetryCharacteristic(characteristic) {
+    telemetryCharacteristic = characteristic;
+}
+
+export function getBleDevice() {
+    return bleDevice;
+}
+
+export function getGattServer() {
+    return gattServer;
+}
+
+export function getCommandCharacteristic() {
+    return commandCharacteristic;
+}
+
+export function getTelemetryCharacteristic() {
+    return telemetryCharacteristic;
+}

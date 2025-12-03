@@ -1,0 +1,38 @@
+<section class="tab-panel active" id="tab-connection" role="tabpanel">
+    <div class="panel-grid">
+        <section class="card">
+            <h2>Connection Status</h2>
+            <div class="button-row">
+                <button id="connectButton">Scan &amp; Connect</button>
+                <button id="disconnectButton" disabled data-connected-only>Disconnect</button>
+            </div>
+            <div id="status">
+                <p id="statusText">Web Bluetooth not initialized.</p>
+                <p id="deviceName">Device: N/A</p>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Device History</h2>
+            <p class="subtext">Devices you've connected to will appear here.</p>
+            <div class="button-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="scanAllDevices">
+                    <span>Show All BLE Devices (not just drone service)</span>
+                </label>
+            </div>
+            <ul id="deviceList" class="device-list">
+                <li class="empty">No devices discovered yet.</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Device Snapshot</h2>
+            <ul>
+                <li><strong>Firmware:</strong> <span id="firmwareVersion">0.0.1v</span></li>
+                <li><strong>Battery:</strong> <span id="batteryLevel">--</span></li>
+                <li><strong>Temperature:</strong> <span id="temperature">--</span></li>
+            </ul>
+        </section>
+    </div>
+</section>
