@@ -17,7 +17,7 @@ export function initControlTab() {
     disarmButton.addEventListener('click', handleDisarm);
     forceArmCheckbox.addEventListener('change', handleForceArmChange);
     throttleSlider.addEventListener('input', handleThrottleInput);
-    throttleSlider.addEventListener('change', handleThrottleChange);
+    // throttleSlider.addEventListener('change', handleThrottleChange);
     testModeSelect.addEventListener('change', handleTestModeChange);
     testDurationInput.addEventListener('change', handleTestDurationChange);
     runTestButton.addEventListener('click', handleRunTest);
@@ -71,38 +71,51 @@ function handleForceArmChange(event) {
     }
 }
 
-function handleThrottleInput() {
+async function handleThrottleInput() {
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
     const value = Number(throttleSlider.value);
     
-    // Convert raw value (28-2047) to percentage (0-100) with 2 decimals
-    const percentage = ((value - 28) / (2047 - 28) * 100).toFixed(2);
+    // Convert raw value (48-2047) to percentage (0-100) with 2 decimals
+    const percentage = ((value - 48) / (2047 - 48) * 100).toFixed(2);
     
     // Vibrate at intervals for feedback while sliding
     if (value % 50 === 0) {
         vibrate(5); // Very light haptic tick
     }
     
+    // Update displayed throttle percentage
     throttleValue.textContent = percentage;
-}
 
-async function handleThrottleChange() {
-    vibrate(15); // Feedback when releasing slider
-    const throttleSlider = document.getElementById('throttleSlider');
-    const value = Number(throttleSlider.value);
-    const percentage = ((value - 28) / (2047 - 28) * 100).toFixed(2);
-    
+    // Vibrate at each value change
+    vibrate(10); // Light feedback on value change
+
+    // Sent command immediately on value change
     try {
-        // Send raw value (28-2047) to device
         await sendCommand('set_throttle', { value: value });
-        vibrate(30); // Confirm command sent
         setControlStatus(`Throttle set to ${percentage}% (${value}).`);
     } catch (error) {
         vibratePattern([200]); // Long vibration for error
         setControlStatus(`Throttle update failed: ${error.message}`, false);
     }
 }
+
+// async function handleThrottleChange() {
+//     vibrate(15); // Feedback when releasing slider
+//     const throttleSlider = document.getElementById('throttleSlider');
+//     const value = Number(throttleSlider.value);
+//     const percentage = ((value - 48) / (2047 - 48) * 100).toFixed(2);
+    
+//     try {
+//         // Send raw value (28-2047) to device
+//         await sendCommand('set_throttle', { value: value });
+//         vibrate(30); // Confirm command sent
+//         setControlStatus(`Throttle set to ${percentage}% (${value}).`);
+//     } catch (error) {
+//         vibratePattern([200]); // Long vibration for error
+//         setControlStatus(`Throttle update failed: ${error.message}`, false);
+//     }
+// }
 
 async function handleTestModeChange() {
     vibrate(15); // Light vibration on select change
