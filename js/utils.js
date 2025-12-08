@@ -25,26 +25,9 @@ export function switchTab(tabName) {
 }
 
 export function toggleInterface(isConnected) {
-    const connectionView = document.getElementById('connectionView');
-    const tabbedInterface = document.getElementById('tabbedInterface');
+    // Tabbed interface is always visible, just show bottom nav
     const bottomNav = document.querySelector('.bottom-nav');
-
-    if (isConnected) {
-        // Show tabbed interface, hide connection view
-        connectionView.style.display = 'none';
-        tabbedInterface.style.display = 'block';
-        if (bottomNav) bottomNav.style.display = 'flex'; // Show bottom nav on all devices
-        
-        // Switch to control tab after connection
-        setTimeout(() => {
-            switchTab('control');
-        }, 300);
-    } else {
-        // Show connection view, hide tabbed interface
-        connectionView.style.display = 'block';
-        tabbedInterface.style.display = 'none';
-        if (bottomNav) bottomNav.style.display = 'none';
-    }
+    if (bottomNav) bottomNav.style.display = 'flex';
 }
 
 export function setStatus(message, isConnected = false) {

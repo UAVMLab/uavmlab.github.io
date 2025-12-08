@@ -21,7 +21,6 @@ export async function loadComponents() {
     // Load all components in parallel
     await Promise.all([
         loadComponent('components/header.html', '#header-container'),
-        loadComponent('components/connection-view.html', '#connection-view-container'),
         loadComponent('components/tab-navigation.html', '#tab-navigation-container'),
         loadComponent('components/tab-connection.html', '#tab-connection-container'),
         loadComponent('components/tab-profiles.html', '#tab-profiles-container'),
