@@ -1,35 +1,111 @@
 <section class="tab-panel" id="tab-profiles" role="tabpanel">
     <div class="panel-grid">
         <section class="card">
-            <h2>Profiles</h2>
+            <h2>Available Profiles</h2>
+            <p class="subtext">Profiles stored on the device</p>
             <div class="button-row">
-                <button id="loadProfilesButton" disabled data-connected-only>Load from Device</button>
-                <button id="syncProfileButton" disabled data-connected-only>Push Selected</button>
+                <button id="loadProfilesButton" disabled data-connected-only>Load Profiles</button>
             </div>
-            <div class="profile-table">
-                <div class="profile-table-header">
-                    <span>Name</span>
-                    <span>Motors</span>
-                    <span>Prop</span>
-                    <span></span>
-                </div>
-                <div id="profileRows" class="profile-table-body">
-                    <p class="empty">No profiles defined.</p>
-                </div>
+            <div id="profileList" class="profile-list">
+                <p class="empty">No profiles available.</p>
             </div>
-            <button id="addProfileButton" class="ghost">+ Add Profile</button>
+            <button id="addProfileButton" class="ghost" disabled data-connected-only>+ Add New Profile</button>
         </section>
 
-        <section class="card">
-            <h2>Edit Profile</h2>
+        <section class="card" id="profileDetailsCard" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h2 id="profileDetailsTitle">Profile Details</h2>
+                <label class="checkbox-label" style="margin: 0;">
+                    <input type="checkbox" id="modifyProfileCheckbox">
+                    <span>Modify</span>
+                </label>
+            </div>
+            
             <form id="profileForm">
-                <label>Name<input type="text" id="profileName" required></label>
-                <label>Motor Details<textarea id="motorDetails" rows="2" required></textarea></label>
-                <label>Propeller Details<textarea id="propDetails" rows="2" required></textarea></label>
-                <label>Other Parameters<textarea id="otherParams" rows="3"></textarea></label>
-                <div class="button-row">
-                    <button type="submit" id="saveProfileButton">Save Profile</button>
-                    <button type="button" id="deleteProfileButton" class="neutral">Delete</button>
+                <label>
+                    Profile Name
+                    <input type="text" id="profileName" required disabled>
+                </label>
+                
+                <label>
+                    Motor KV
+                    <input type="text" id="motorKV" required disabled>
+                </label>
+                
+                <label>
+                    Propeller Details
+                    <input type="text" id="propellerDetails" required disabled>
+                </label>
+                
+                <label>
+                    Battery Type
+                    <select id="batteryType" required disabled>
+                        <option value="0">Unknown</option>
+                        <option value="1">1S LiPo</option>
+                        <option value="2">2S LiPo</option>
+                        <option value="3">3S LiPo</option>
+                        <option value="4">4S LiPo</option>
+                        <option value="5">5S LiPo</option>
+                        <option value="6">6S LiPo</option>
+                        <option value="7">7S LiPo</option>
+                        <option value="8">8S LiPo</option>
+                        <option value="9">9S LiPo</option>
+                        <option value="10">10S LiPo</option>
+                        <option value="11">11S LiPo</option>
+                        <option value="12">12S LiPo</option>
+                        <option value="13">13S LiPo</option>
+                        <option value="14">14S LiPo</option>
+                        <option value="15">15S LiPo</option>
+                        <option value="16">16S LiPo</option>
+                    </select>
+                </label>
+                
+                <label>
+                    Motor Poles (even numbers only)
+                    <input type="number" id="motorPoles" required min="2" step="2" disabled>
+                </label>
+                
+                <label class="checkbox-label">
+                    <input type="checkbox" id="motorReverse" disabled>
+                    <span>Motor Reverse</span>
+                </label>
+                
+                <label>
+                    Arm Throttle (48-2047)
+                    <input type="number" id="armThrottle" required min="48" max="2047" disabled>
+                </label>
+                
+                <label>
+                    Max RPM
+                    <input type="number" id="maxRPM" required min="0" disabled>
+                </label>
+                
+                <label>
+                    Max ESC Temperature (°C)
+                    <input type="number" id="maxESCTemp" required step="0.1" disabled>
+                </label>
+                
+                <label>
+                    Max Motor Temperature (°C)
+                    <input type="number" id="maxMotorTemp" required step="0.1" disabled>
+                </label>
+                
+                <label>
+                    Max Current (A)
+                    <input type="number" id="maxCurrent" required step="0.1" disabled>
+                </label>
+
+                <!-- Action buttons when not modifying -->
+                <div id="profileActions" class="button-row">
+                    <button type="button" id="setProfileButton" class="success" disabled data-connected-only>Set Active</button>
+                    <button type="button" id="removeProfileButton" class="danger" disabled data-connected-only>Remove</button>
+                    <button type="button" id="downloadProfileButton" class="neutral" disabled>Download</button>
+                </div>
+
+                <!-- Save/Cancel buttons when modifying -->
+                <div id="profileModifyActions" class="button-row" style="display: none;">
+                    <button type="submit" id="saveProfileButton" class="success" disabled data-connected-only>Save</button>
+                    <button type="button" id="cancelModifyButton" class="neutral">Cancel</button>
                 </div>
             </form>
         </section>

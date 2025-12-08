@@ -511,6 +511,11 @@ button.neutral {
     background: #6c757d;
 }
 
+button.danger,
+#disarmButton {
+    background: #dc3545;
+}
+
 button.success {
     background: #2ecc71;
 }
@@ -567,6 +572,43 @@ button.ghost {
     min-width: unset;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
+}
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.profile-list-item {
+    padding: 0.5rem;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.profile-list-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: #0b5cff;
+}
+
+.profile-list-item.active {
+    background: rgba(11, 92, 255, 0.12);
+    border-color: #0b5cff;
+    border-left: 3px solid #0b5cff;
+}
+
+.profile-list-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.profile-list-details {
+    font-size: 0.75rem;
+    color: #8b949e;
 }
 
 .metrics-grid {

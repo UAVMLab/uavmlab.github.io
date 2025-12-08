@@ -322,6 +322,11 @@ function handleTelemetry(event) {
             // Update profiles if payload exists
             if (msg.profiles && Array.isArray(msg.profiles)) {
                 state.profiles = msg.profiles;
+                
+                // Update profile list UI if available
+                if (typeof window.updateProfileList === 'function') {
+                    window.updateProfileList();
+                }
             }
         }
         // Handle version messages
@@ -329,6 +334,13 @@ function handleTelemetry(event) {
             if (msg.firmware !== undefined) {
                 firmwareVersion.textContent = msg.firmware;
                 appendLog(`Firmware version: ${msg.firmware}`);
+            }
+        }
+        // Handle individual profile messages
+        else if (msg.type === 'profile') {
+            // Pass to profile handler
+            if (typeof window.handleProfileMessage === 'function') {
+                window.handleProfileMessage(msg);
             }
         }
         // Handle legacy format with payload
