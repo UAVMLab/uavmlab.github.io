@@ -6,7 +6,7 @@ import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
 export function initConnectionTab() {
     const connectButton = document.getElementById('connectButton');
     const disconnectButton = document.getElementById('disconnectButton');
-    const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
+    // const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
 
     connectButton.addEventListener('click', connectDevice);
     disconnectButton.addEventListener('click', disconnectDevice);
@@ -101,12 +101,88 @@ async function connectDevice() {
         vibratePattern([50, 50, 100]); // Success pattern
         appendLog('Connection established successfully!');
         renderDeviceList();
+        
+        // Start RSSI monitoring
+        startRSSIMonitoring(device);
     } catch (error) {
         setStatus(`Connection failed: ${error.message}`);
         vibratePattern([200]); // Error vibration
         appendLog(`Error: ${error.message}`);
         console.error(error);
     }
+}
+
+// Monitor connection strength (RSSI)
+let rssiInterval = null;
+
+function startRSSIMonitoring(device) {
+    // Clear any existing interval
+    if (rssiInterval) {
+        clearInterval(rssiInterval);
+    }
+    
+    // Update RSSI every 2 seconds
+    rssiInterval = setInterval(async () => {
+        try {
+            if (device && device.gatt && device.gatt.connected) {
+                // Note: RSSI reading may not be available in all browsers/devices
+                // This is a simulated approach - actual RSSI requires experimental APIs
+                updateRSSIDisplay(-60); // Placeholder - replace with actual RSSI when available
+            } else {
+                stopRSSIMonitoring();
+            }
+        } catch (error) {
+            console.error('RSSI monitoring error:', error);
+        }
+    }, 2000);
+}
+
+function stopRSSIMonitoring() {
+    if (rssiInterval) {
+        clearInterval(rssiInterval);
+        rssiInterval = null;
+    }
+    updateRSSIDisplay(null);
+}
+
+function updateRSSIDisplay(rssi) {
+    const rssiValue = document.getElementById('rssiValue');
+    const signalBars = document.querySelectorAll('#rssiIndicator .signal-bar');
+    
+    if (rssi === null || rssi === undefined) {
+        rssiValue.textContent = '--';
+        signalBars.forEach(bar => bar.style.background = '#30363d');
+        return;
+    }
+    
+    rssiValue.textContent = `${rssi} dBm`;
+    
+    // Determine signal strength and color
+    let strength = 0;
+    let color = '#dc3545'; // Red (poor)
+    
+    if (rssi >= -50) {
+        strength = 4; // Excellent
+        color = '#2ecc71'; // Green
+    } else if (rssi >= -60) {
+        strength = 3; // Good
+        color = '#2ecc71'; // Green
+    } else if (rssi >= -70) {
+        strength = 2; // Fair
+        color = '#f39c12'; // Orange
+    } else if (rssi >= -80) {
+        strength = 1; // Poor
+        color = '#dc3545'; // Red
+    }
+    
+    // Update signal bars
+    signalBars.forEach((bar, index) => {
+        if (index < strength) {
+            bar.style.background = color;
+        } else {
+            bar.style.background = '#30363d';
+        }
+    });
 }
 
 async function disconnectDevice() {
@@ -122,6 +198,7 @@ async function disconnectDevice() {
 function onDisconnected() {
     const deviceNameDisplay = document.getElementById('deviceName');
     
+    stopRSSIMonitoring(); // Stop RSSI monitoring
     setStatus('Device disconnected.');
     deviceNameDisplay.textContent = 'Device: N/A';
     state.connectedDeviceId = null;
@@ -156,12 +233,18 @@ function handleTelemetry(event) {
             if (p.rpm !== undefined) rpmMetric.textContent = p.rpm;
             if (p.escTemp !== undefined) escTempMetric.textContent = `${p.escTemp} °C`;
             if (p.motorTemp !== undefined) motorTempMetric.textContent = `${p.motorTemp} °C`;
+            
+            // Update RSSI if available in telemetry
+            if (p.rssi !== undefined) updateRSSIDisplay(p.rssi);
         } else if (msg.type === 'ACK' || msg.type === 'ack') {
             appendLog(`ACK received for command: ${msg.command || 'unknown'}`);
         } else if (msg.type === 'DEVICE_INFO' && msg.payload) {
             firmwareVersion.textContent = msg.payload.firmware || '0.0.1v';
             batteryLevel.textContent = msg.payload.battery || '--';
             temperature.textContent = msg.payload.temperature || '--';
+            
+            // Update RSSI if available in device info
+            if (msg.payload.rssi !== undefined) updateRSSIDisplay(msg.payload.rssi);
         }
     } catch (err) {
         // Not JSON, just log raw data

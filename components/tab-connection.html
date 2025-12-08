@@ -9,6 +9,16 @@
             <div id="status">
                 <p id="statusText">Web Bluetooth not initialized.</p>
                 <p id="deviceName">Device: N/A</p>
+                <p id="connectionStrength" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <strong>Signal:</strong> 
+                    <span id="rssiValue">--</span>
+                    <span id="rssiIndicator" style="display: inline-flex; gap: 2px;">
+                        <span class="signal-bar" style="height: 8px; width: 3px; background: #30363d; border-radius: 1px;"></span>
+                        <span class="signal-bar" style="height: 12px; width: 3px; background: #30363d; border-radius: 1px;"></span>
+                        <span class="signal-bar" style="height: 16px; width: 3px; background: #30363d; border-radius: 1px;"></span>
+                        <span class="signal-bar" style="height: 20px; width: 3px; background: #30363d; border-radius: 1px;"></span>
+                    </span>
+                </p>
             </div>
         </section>
 
