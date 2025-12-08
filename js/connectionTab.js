@@ -2,6 +2,7 @@
 import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUID, APP_DISCOVERY_SERVICE_UUID, APP_INFO_CHARACTERISTIC_UUID, decoder } from './constants.js';
 import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from './state.js';
 import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
+import { sendCommand } from './bluetooth.js';
 
 export function initConnectionTab() {
     const connectButton = document.getElementById('connectButton');
@@ -120,6 +121,14 @@ async function connectDevice() {
         appendLog('Connection established successfully!');
         renderDeviceList();
         
+        // Request firmware version
+        try {
+            await sendCommand('get_version');
+            appendLog('Requested firmware version from device.');
+        } catch (err) {
+            appendLog(`Failed to request version: ${err.message}`);
+        }
+        
         // Start RSSI monitoring
         startRSSIMonitoring(device);
     } catch (error) {
@@ -222,12 +231,22 @@ async function disconnectDevice() {
             device.gatt.disconnect();
             vibrate(50); // Confirm disconnect
             appendLog('Disconnect requested by user.');
+            
+            // Manually trigger cleanup in case event doesn't fire
+            setTimeout(() => {
+                if (device && !device.gatt.connected) {
+                    onDisconnected();
+                }
+            }, 500);
         } catch (error) {
             appendLog(`Disconnect error: ${error.message}`);
             console.error('Disconnect error:', error);
+            // Force cleanup on error
+            onDisconnected();
         }
     } else {
         appendLog('Device is not connected.');
+        onDisconnected(); // Clean up anyway
     }
 }
 
@@ -271,27 +290,151 @@ function handleTelemetry(event) {
 
     try {
         const msg = JSON.parse(data);
-        if (msg.type === 'TELEMETRY' && msg.payload) {
-            const p = msg.payload;
-            if (p.voltage !== undefined) voltageMetric.textContent = `${p.voltage} V`;
-            if (p.current !== undefined) currentMetric.textContent = `${p.current} A`;
-            if (p.rpm !== undefined) rpmMetric.textContent = p.rpm;
-            if (p.escTemp !== undefined) escTempMetric.textContent = `${p.escTemp} °C`;
-            if (p.motorTemp !== undefined) motorTempMetric.textContent = `${p.motorTemp} °C`;
+        
+        // Handle telemetry data with flat structure (type='data')
+        if (msg.type === 'data') {
+            // Store in global state
+            state.lastRxData = msg;
             
-            // Update RSSI if available in telemetry
-            if (p.rssi !== undefined) updateRSSIDisplay(p.rssi);
-        } else if (msg.type === 'ACK' || msg.type === 'ack') {
+            if (msg.voltage !== undefined) voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
+            if (msg.current !== undefined) currentMetric.textContent = `${msg.current.toFixed(2)} A`;
+            if (msg.power !== undefined) powerMetric.textContent = `${msg.power.toFixed(2)} W`;
+            if (msg.rpm !== undefined) rpmMetric.textContent = msg.rpm;
+            if (msg.thrust !== undefined) thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
+            if (msg.escTemp !== undefined) escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
+            if (msg.motorTemp !== undefined) motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+            
+            // Update status indicators
+            if (msg.status !== undefined) updateStatusIndicators(msg.status);
+        }
+        // Handle status messages
+        else if (msg.type === 'status') {
+            // Store in global state
+            state.lastRxStatus = msg;
+            
+            if (msg.status !== undefined) updateStatusIndicators(msg.status);
+        }
+        // Handle profiles messages
+        else if (msg.type === 'profiles') {
+            // Store in global state
+            state.lastRxProfiles = msg;
+            
+            // Update profiles if payload exists
+            if (msg.profiles && Array.isArray(msg.profiles)) {
+                state.profiles = msg.profiles;
+            }
+        }
+        // Handle version messages
+        else if (msg.type === 'version') {
+            if (msg.firmware !== undefined) {
+                firmwareVersion.textContent = msg.firmware;
+                appendLog(`Firmware version: ${msg.firmware}`);
+            }
+        }
+        // Handle legacy format with payload
+        else if (msg.type === 'data' && msg.payload) {
+            const p = msg.payload;
+            if (p.voltage !== undefined) voltageMetric.textContent = `${p.voltage.toFixed(2)} V`;
+            if (p.current !== undefined) currentMetric.textContent = `${p.current.toFixed(2)} A`;
+            if (p.rpm !== undefined) rpmMetric.textContent = p.rpm;
+            if (p.escTemp !== undefined) escTempMetric.textContent = `${p.escTemp.toFixed(1)} °C`;
+            if (p.motorTemp !== undefined) motorTempMetric.textContent = `${p.motorTemp.toFixed(1)} °C`;
+        }
+        // Handle acknowledgments
+        else if (msg.type === 'ACK' || msg.type === 'ack') {
             appendLog(`ACK received for command: ${msg.command || 'unknown'}`);
-        } else if (msg.type === 'DEVICE_INFO' && msg.payload) {
+        }
+        // Handle device info
+        else if (msg.type === 'DEVICE_INFO' && msg.payload) {
             firmwareVersion.textContent = msg.payload.firmware || '0.0.1v';
             batteryLevel.textContent = msg.payload.battery || '--';
             temperature.textContent = msg.payload.temperature || '--';
             
-            // Update RSSI if available in device info
             if (msg.payload.rssi !== undefined) updateRSSIDisplay(msg.payload.rssi);
         }
     } catch (err) {
         // Not JSON, just log raw data
+        console.warn('Received non-JSON telemetry:', data, err);
     }
+}
+
+function updateStatusIndicators(status) {
+    // Status bit definitions
+    const STATUS_BITS = {
+        // Initialization Status
+        USR_CFG_PROF_OK: 1 << 0,
+        DSHOT_OK: 1 << 1,
+        KISS_TELEM_OK: 1 << 2,
+        HX711_OK: 1 << 3,
+        NTC_SENSOR_OK: 1 << 4,
+        
+        // Task Status
+        DSHOT_TASK_RUNNING: 1 << 5,
+        KISS_TELEM_TASK_RUNNING: 1 << 6,
+        SENSOR_TASK_RUNNING: 1 << 7,
+        
+        // Runtime Status
+        MOTOR_ARMED: 1 << 8,
+        MOTOR_SPINNING: 1 << 9,
+        DSHOT_SEND_OK: 1 << 10,
+        KISS_TELEM_READ_OK: 1 << 11,
+        HX711_TARE_OK: 1 << 12,
+        HX711_READ_OK: 1 << 13,
+        NTC_SENSOR_READ_OK: 1 << 14,
+        
+        // Warning Flags
+        WARN_BATTERY_LOW: 1 << 15,
+        WARN_ESC_OVERHEAT: 1 << 16,
+        WARN_MOTOR_OVERHEAT: 1 << 17,
+        WARN_OVER_CURRENT: 1 << 18,
+        WARN_OVER_RPM: 1 << 19,
+        WARN_MOTOR_STALL: 1 << 20,
+        WARN_FULL_USR_CFG_PRFLS: 1 << 21
+    };
+    
+    // Helper function to update a status dot
+    const updateDot = (id, isActive, isWarning = false) => {
+        const dot = document.getElementById(id);
+        if (!dot) return;
+        
+        dot.classList.remove('active', 'inactive', 'warning', 'ok');
+        
+        if (isWarning) {
+            // For warnings: 0 = ok (green), 1 = warning (orange)
+            dot.classList.add(isActive ? 'warning' : 'ok');
+        } else {
+            // For normal status: 0 = inactive (red), 1 = active (green)
+            dot.classList.add(isActive ? 'active' : 'inactive');
+        }
+    };
+    
+    // Initialization Status
+    updateDot('status-cfg', status & STATUS_BITS.USR_CFG_PROF_OK);
+    updateDot('status-dshot', status & STATUS_BITS.DSHOT_OK);
+    updateDot('status-kiss', status & STATUS_BITS.KISS_TELEM_OK);
+    updateDot('status-hx711', status & STATUS_BITS.HX711_OK);
+    updateDot('status-ntc', status & STATUS_BITS.NTC_SENSOR_OK);
+    
+    // Task Status
+    updateDot('status-dshot-task', status & STATUS_BITS.DSHOT_TASK_RUNNING);
+    updateDot('status-kiss-task', status & STATUS_BITS.KISS_TELEM_TASK_RUNNING);
+    updateDot('status-sensor-task', status & STATUS_BITS.SENSOR_TASK_RUNNING);
+    
+    // Runtime Status
+    updateDot('status-armed', status & STATUS_BITS.MOTOR_ARMED);
+    updateDot('status-spinning', status & STATUS_BITS.MOTOR_SPINNING);
+    updateDot('status-dshot-send', status & STATUS_BITS.DSHOT_SEND_OK);
+    updateDot('status-kiss-read', status & STATUS_BITS.KISS_TELEM_READ_OK);
+    updateDot('status-hx711-tare', status & STATUS_BITS.HX711_TARE_OK);
+    updateDot('status-hx711-read', status & STATUS_BITS.HX711_READ_OK);
+    updateDot('status-ntc-read', status & STATUS_BITS.NTC_SENSOR_READ_OK);
+    
+    // Warning Flags (inverted logic)
+    updateDot('status-warn-battery', status & STATUS_BITS.WARN_BATTERY_LOW, true);
+    updateDot('status-warn-esc', status & STATUS_BITS.WARN_ESC_OVERHEAT, true);
+    updateDot('status-warn-motor', status & STATUS_BITS.WARN_MOTOR_OVERHEAT, true);
+    updateDot('status-warn-current', status & STATUS_BITS.WARN_OVER_CURRENT, true);
+    updateDot('status-warn-rpm', status & STATUS_BITS.WARN_OVER_RPM, true);
+    updateDot('status-warn-stall', status & STATUS_BITS.WARN_MOTOR_STALL, true);
+    updateDot('status-warn-cfg', status & STATUS_BITS.WARN_FULL_USR_CFG_PRFLS, true);
 }

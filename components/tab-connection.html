@@ -10,7 +10,7 @@
                 <p id="statusText">Web Bluetooth not initialized.</p>
                 <p id="deviceName">Device: N/A</p>
                 <p id="connectionStrength" style="display: flex; align-items: flex-end; gap: 0.5rem;">
-                    <strong style="line-height: 20px;">Signal:</strong> 
+                    <span style="line-height: 10px;">Signal:</span> 
                     <span id="rssiValue" style="line-height: 20px;">--</span>
                     <span id="rssiIndicator" style="display: inline-flex; gap: 2px; align-items: flex-end; height: 20px;">
                         <span class="signal-bar" style="height: 8px; width: 3px; background: #30363d; border-radius: 1px;"></span>
@@ -39,9 +39,9 @@
         <section class="card">
             <h2>Device Snapshot</h2>
             <ul>
-                <li><strong>Firmware:</strong> <span id="firmwareVersion">0.0.1v</span></li>
-                <li><strong>Battery:</strong> <span id="batteryLevel">--</span></li>
-                <li><strong>Temperature:</strong> <span id="temperature">--</span></li>
+                <li>Firmware: v<span id="firmwareVersion">--</span></li>
+                <!-- <li>Battery: <span id="batteryLevel">--</span></li>
+                <li>Temperature: <span id="temperature">--</span></li> -->
             </ul>
         </section>
     </div>

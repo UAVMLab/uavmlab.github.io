@@ -10,4 +10,4 @@ export const APP_INFO_CHARACTERISTIC_UUID = 'f0e00002-7a2c-4e9b-a5cf-2b1a9d5ed00
 export const encoder = new TextEncoder();
 export const decoder = new TextDecoder();
 
-export const MAX_LOG_LINES = 200;
+export const MAX_LOG_LINES = 5000;

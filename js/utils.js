@@ -2,7 +2,16 @@
 import { MAX_LOG_LINES } from './constants.js';
 import { state } from './state.js';
 
-const logBuffer = ['Ready.'];
+const logBuffer = [{ timestamp: new Date(), type: 'info', message: 'Ready.' }];
+
+// Log filter state
+export const logFilters = {
+    info: true,
+    warning: true,
+    error: true,
+    rx: false,
+    tx: false
+};
 
 export function switchTab(tabName) {
     const tabButtons = document.querySelectorAll('.tab-button');
@@ -39,21 +48,80 @@ export function setStatus(message, isConnected = false) {
     state.connected = isConnected;
 
     document.querySelectorAll('[data-connected-only]').forEach((el) => {
-        el.disabled = !isConnected;
+        // For form elements (buttons, inputs, selects)
+        if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+            el.disabled = !isConnected;
+        } else {
+            // For div elements and other non-form elements
+            if (isConnected) {
+                el.classList.remove('disabled');
+                el.removeAttribute('disabled');
+            } else {
+                el.classList.add('disabled');
+                el.setAttribute('disabled', 'true');
+            }
+        }
+    });
+    
+    // Update status dots to gray when disconnected
+    const statusDots = document.querySelectorAll('.status-dot');
+    statusDots.forEach(dot => {
+        if (isConnected) {
+            dot.classList.remove('disconnected');
+        } else {
+            dot.classList.add('disconnected');
+        }
     });
 
     // Toggle between connection view and tabbed interface
     toggleInterface(isConnected);
 }
 
-export function appendLog(message) {
-    const logOutput = document.getElementById('logOutput');
-    const timestamp = new Date().toLocaleTimeString();
-    logBuffer.push(`[${timestamp}] ${message}`);
+// Determine log type from message content
+function detectLogType(message) {
+    const lowerMsg = message.toLowerCase();
+    
+    if (message.startsWith('RX:') || message.startsWith('←')) {
+        return 'rx';
+    }
+    if (message.startsWith('TX:') || message.startsWith('→')) {
+        return 'tx';
+    }
+    if (lowerMsg.includes('error') || lowerMsg.includes('failed') || lowerMsg.includes('disconnect')) {
+        return 'error';
+    }
+    if (lowerMsg.includes('warning') || lowerMsg.includes('warn')) {
+        return 'warning';
+    }
+    return 'info';
+}
+
+export function appendLog(message, type = null) {
+    const timestamp = new Date();
+    const logType = type || detectLogType(message);
+    
+    logBuffer.push({ timestamp, type: logType, message });
+    
     while (logBuffer.length > MAX_LOG_LINES) {
         logBuffer.shift();
     }
-    logOutput.textContent = logBuffer.join('\n');
+    
+    updateLogDisplay();
+}
+
+export function updateLogDisplay() {
+    const logOutput = document.getElementById('logOutput');
+    if (!logOutput) return;
+    
+    const filteredLogs = logBuffer.filter(log => logFilters[log.type]);
+    
+    const logHTML = filteredLogs.map(log => {
+        const timeStr = log.timestamp.toLocaleTimeString();
+        const colorClass = `log-${log.type}`;
+        return `<span class="${colorClass}">[${timeStr}] ${log.message}</span>`;
+    }).join('\n');
+    
+    logOutput.innerHTML = logHTML || 'No logs to display.';
     logOutput.scrollTop = logOutput.scrollHeight;
 }
 

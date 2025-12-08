@@ -2,8 +2,20 @@
 import { sendCommand } from './bluetooth.js';
 import { appendLog, vibrate, vibratePattern } from './utils.js';
 
+// Throttle state for slider
+let throttleSendTimeout = null;
+let lastThrottleValue = null;
+let isThrottleSending = false;
+
+// Slide to arm state
+let isDragging = false;
+let startX = 0;
+let currentX = 0;
+let isArmed = false;
+
 export function initControlTab() {
-    const armButton = document.getElementById('armButton');
+    const slideToArm = document.getElementById('slideToArm');
+    const slideButton = document.getElementById('slideButton');
     const disarmButton = document.getElementById('disarmButton');
     const forceArmCheckbox = document.getElementById('forceArmCheckbox');
     const throttleSlider = document.getElementById('throttleSlider');
@@ -13,30 +25,165 @@ export function initControlTab() {
     const runTestButton = document.getElementById('runTestButton');
     const stopTestButton = document.getElementById('stopTestButton');
 
-    armButton.addEventListener('click', handleArm);
-    disarmButton.addEventListener('click', handleDisarm);
-    forceArmCheckbox.addEventListener('change', handleForceArmChange);
-    throttleSlider.addEventListener('input', handleThrottleInput);
-    // throttleSlider.addEventListener('change', handleThrottleChange);
-    testModeSelect.addEventListener('change', handleTestModeChange);
-    testDurationInput.addEventListener('change', handleTestDurationChange);
-    runTestButton.addEventListener('click', handleRunTest);
-    stopTestButton.addEventListener('click', handleStopTest);
+    // Slide to arm event listeners
+    if (slideButton) {
+        slideButton.addEventListener('mousedown', handleSlideStart);
+        slideButton.addEventListener('touchstart', handleSlideStart, { passive: false });
+        document.addEventListener('mousemove', handleSlideMove);
+        document.addEventListener('touchmove', handleSlideMove, { passive: false });
+        document.addEventListener('mouseup', handleSlideEnd);
+        document.addEventListener('touchend', handleSlideEnd);
+    }
+
+    if (disarmButton) disarmButton.addEventListener('click', handleDisarm);
+    if (forceArmCheckbox) forceArmCheckbox.addEventListener('change', handleForceArmChange);
+    if (throttleSlider) {
+        throttleSlider.addEventListener('input', handleThrottleInput);
+        throttleSlider.addEventListener('change', handleThrottleChange);
+    }
+    if (testModeSelect) testModeSelect.addEventListener('change', handleTestModeChange);
+    if (testDurationInput) testDurationInput.addEventListener('change', handleTestDurationChange);
+    if (runTestButton) runTestButton.addEventListener('click', handleRunTest);
+    if (stopTestButton) stopTestButton.addEventListener('click', handleStopTest);
+    
+    // Status dot touch/click handlers
+    initStatusDotHandlers();
+}
+
+function initStatusDotHandlers() {
+    const statusDots = document.querySelectorAll('.status-dot');
+    let activeLabel = null;
+    
+    statusDots.forEach(dot => {
+        // Touch events for mobile
+        dot.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            // Remove previous active label
+            if (activeLabel && activeLabel !== dot) {
+                activeLabel.classList.remove('show-label');
+            }
+            
+            // Toggle current label
+            if (dot.classList.contains('show-label')) {
+                dot.classList.remove('show-label');
+                activeLabel = null;
+            } else {
+                dot.classList.add('show-label');
+                activeLabel = dot;
+                vibrate(10);
+                
+                // Auto-hide after 2 seconds
+                setTimeout(() => {
+                    if (activeLabel === dot) {
+                        dot.classList.remove('show-label');
+                        activeLabel = null;
+                    }
+                }, 2000);
+            }
+        });
+        
+        // Click events for desktop
+        dot.addEventListener('click', (e) => {
+            e.preventDefault();
+            vibrate(10);
+        });
+    });
+    
+    // Close label when clicking elsewhere
+    document.addEventListener('touchstart', (e) => {
+        if (activeLabel && !e.target.classList.contains('status-dot')) {
+            activeLabel.classList.remove('show-label');
+            activeLabel = null;
+        }
+    });
+}
+
+function handleSlideStart(event) {
+    const slideToArm = document.getElementById('slideToArm');
+    if (!slideToArm || slideToArm.hasAttribute('disabled') || isArmed) return;
+    
+    event.preventDefault();
+    isDragging = true;
+    startX = event.type.includes('mouse') ? event.clientX : event.touches[0].clientX;
+    vibrate(10);
+}
+
+function handleSlideMove(event) {
+    if (!isDragging) return;
+    
+    event.preventDefault();
+    const slideButton = document.getElementById('slideButton');
+    const slideToArm = document.getElementById('slideToArm');
+    if (!slideButton || !slideToArm) return;
+    
+    const clientX = event.type.includes('mouse') ? event.clientX : event.touches[0].clientX;
+    const deltaX = clientX - startX;
+    const maxSlide = slideToArm.offsetWidth - slideButton.offsetWidth - 8;
+    
+    currentX = Math.max(0, Math.min(deltaX, maxSlide));
+    slideButton.style.transform = `translateX(${currentX}px) translateY(-50%)`;
+    
+    // Haptic feedback at milestones
+    const progress = currentX / maxSlide;
+    if (progress > 0.5 && progress < 0.52) {
+        vibrate(5);
+    } else if (progress > 0.75 && progress < 0.77) {
+        vibrate(8);
+    }
+}
+
+function handleSlideEnd(event) {
+    if (!isDragging) return;
+    
+    isDragging = false;
+    const slideButton = document.getElementById('slideButton');
+    const slideToArm = document.getElementById('slideToArm');
+    if (!slideButton || !slideToArm) return;
+    
+    const maxSlide = slideToArm.offsetWidth - slideButton.offsetWidth - 8;
+    const progress = currentX / maxSlide;
+    
+    // If slid more than 85%, trigger arm
+    if (progress > 0.85) {
+        slideButton.style.transform = `translateX(${maxSlide}px) translateY(-50%)`;
+        vibratePattern([50, 30, 50]);
+        handleArm();
+    } else {
+        // Reset position with animation
+        slideButton.style.transition = 'transform 0.3s ease-out';
+        slideButton.style.transform = 'translateX(0) translateY(-50%)';
+        vibrate(15);
+        setTimeout(() => {
+            slideButton.style.transition = '';
+        }, 300);
+    }
+    
+    currentX = 0;
 }
 
 async function handleArm() {
-    vibrate(20); // Light vibration on button press
     const forceArmCheckbox = document.getElementById('forceArmCheckbox');
+    const slideToArm = document.getElementById('slideToArm');
+    const slideButton = document.getElementById('slideButton');
+    const slideText = document.querySelector('.slide-text');
     const isForceArm = forceArmCheckbox?.checked || false;
     const cmd = isForceArm ? 'force_arm' : 'arm';
     
     try {
         await sendCommand(cmd);
-        vibratePattern([50, 50, 50]); // Success pattern
+        isArmed = true;
+        vibratePattern([50, 50, 100]); // Success pattern
         setControlStatus(`Motor ${isForceArm ? 'force ' : ''}armed.`);
+        
+        // Update UI
+        if (slideButton) slideButton.classList.add('armed');
+        if (slideToArm) slideToArm.classList.add('armed');
+        if (slideText) slideText.textContent = 'ARMED ✓';
     } catch (error) {
         vibratePattern([200]); // Long vibration for error
         setControlStatus(`Arm failed: ${error.message}`, false);
+        resetSlideToArm();
     }
 }
 
@@ -46,10 +193,29 @@ async function handleDisarm() {
         await sendCommand('disarm');
         vibrate(50); // Medium vibration for disarm
         setControlStatus('Motor disarmed.');
+        resetSlideToArm();
     } catch (error) {
         vibratePattern([200]); // Long vibration for error
         setControlStatus(`Disarm failed: ${error.message}`, false);
     }
+}
+
+function resetSlideToArm() {
+    isArmed = false;
+    const slideButton = document.getElementById('slideButton');
+    const slideToArm = document.getElementById('slideToArm');
+    const slideText = document.querySelector('.slide-text');
+    
+    if (slideButton) {
+        slideButton.classList.remove('armed');
+        slideButton.style.transition = 'transform 0.3s ease-out';
+        slideButton.style.transform = 'translateX(0) translateY(-50%)';
+        setTimeout(() => {
+            slideButton.style.transition = '';
+        }, 300);
+    }
+    if (slideToArm) slideToArm.classList.remove('armed');
+    if (slideText) slideText.textContent = 'Slide to ARM >> ';
 }
 
 function handleForceArmChange(event) {
@@ -84,19 +250,53 @@ async function handleThrottleInput() {
         vibrate(5); // Very light haptic tick
     }
     
-    // Update displayed throttle percentage
+    // Update displayed throttle percentage immediately
     throttleValue.textContent = percentage;
+    
+    // Store value for debounced send
+    lastThrottleValue = value;
+    
+    // Clear existing timeout
+    if (throttleSendTimeout) {
+        clearTimeout(throttleSendTimeout);
+    }
+    
+    // Debounce: wait 100ms after last input before sending
+    throttleSendTimeout = setTimeout(() => {
+        sendThrottleCommand(value, percentage);
+    }, 100);
+}
 
-    // Vibrate at each value change
-    vibrate(10); // Light feedback on value change
+async function handleThrottleChange() {
+    // Called when slider is released - ensure final value is sent
+    if (throttleSendTimeout) {
+        clearTimeout(throttleSendTimeout);
+    }
+    
+    const throttleSlider = document.getElementById('throttleSlider');
+    const value = Number(throttleSlider.value);
+    const percentage = ((value - 48) / (2047 - 48) * 100).toFixed(2);
+    
+    await sendThrottleCommand(value, percentage);
+}
 
-    // Sent command immediately on value change
+async function sendThrottleCommand(value, percentage) {
+    // Prevent concurrent sends
+    if (isThrottleSending) {
+        return;
+    }
+    
+    isThrottleSending = true;
+    
     try {
         await sendCommand('set_throttle', { value: value });
         setControlStatus(`Throttle set to ${percentage}% (${value}).`);
     } catch (error) {
         vibratePattern([200]); // Long vibration for error
         setControlStatus(`Throttle update failed: ${error.message}`, false);
+        appendLog(`Throttle error: ${error.message}`, 'error');
+    } finally {
+        isThrottleSending = false;
     }
 }
 

@@ -1,6 +1,30 @@
 <section class="tab-panel" id="tab-logs" role="tabpanel">
     <section class="card" id="logSection">
         <h2>Logs</h2>
+        <!-- check boxes to filter logs: i/w/e, debug, rx, tx -->
+        <div class="log-filters">
+            <label class="checkbox-label">
+                <input type="checkbox" id="infoLogCheckbox" checked>
+                <span>Info</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="warningLogCheckbox" checked>
+                <span>Warning</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="errorLogCheckbox" checked>
+                <span>Error</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="rxLogCheckbox">
+                <span>RX</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="txLogCheckbox">
+                <span>TX</span>
+            </label>
+        </div>
+
         <pre id="logOutput">Ready.</pre>
     </section>
 </section>

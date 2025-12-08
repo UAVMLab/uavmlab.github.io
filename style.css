@@ -63,29 +63,29 @@ main {
 }
 
 .connection-card h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
 }
 
 .connection-card .subtext {
-    margin-bottom: 2rem;
-    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.8rem;
 }
 
 .connection-card #status {
-    margin-top: 1.5rem;
+    margin-top: 1rem;
     text-align: left;
 }
 
 .connection-options {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
     border-top: 1px solid #30363d;
 }
 
 .connection-options .checkbox-label {
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
 }
 
 .tabs {
@@ -138,47 +138,95 @@ html {
 .panel-grid {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.75rem;
 }
 
 .card {
     background: #161b22;
     border: 1px solid #30363d;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
+
+.card.telemetry {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #161b22;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+}
+
+.card.telemetry h2 {
+    font-size: 0.85rem;
+    margin: 0 0 0.4rem 0;
+    font-weight: 600;
+}
+
+.card.telemetry .metrics-grid {
+    gap: 0.3rem;
+}
+
+.card.telemetry .metric-row {
+    gap: 0.3rem;
+}
+
+.card.telemetry .metric {
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+}
+
+.card.telemetry .metric h3 {
+    font-size: 0.65rem;
+    margin: 0;
+}
+
+.card.telemetry .metric-icon {
+    font-size: 0.9rem;
+}
+
+.card.telemetry .metric p {
+    margin: 0.1rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
 
 .card h2 {
     margin-top: 0;
-    font-size: 1.2rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 
 #status {
-    margin-top: 1rem;
+    margin-top: 0.5rem;
     border-top: 1px solid #30363d;
-    padding-top: 1rem;
-    font-size: 0.95rem;
+    padding-top: 0.5rem;
+    font-size: 0.8rem;
 }
 
 ul {
     list-style: none;
     padding: 0;
-    margin: 1rem 0 0 0;
+    margin: 0.5rem 0 0 0;
 }
 
 ul li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.7rem;
 }
 
 .device-list li {
-    padding: 0.65rem;
+    padding: 0.5rem;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
     display: flex;
     justify-content: space-between;
     gap: 0.5rem;
+    font-size: 0.8rem;
 }
 
 .device-list li.active {
@@ -188,8 +236,8 @@ ul li {
 
 .subtext {
     color: #8b949e;
-    font-size: 0.85rem;
-    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    margin-top: 0.2rem;
 }
 
 .checkbox-label {
@@ -197,7 +245,185 @@ ul li {
     align-items: center;
     gap: 0.5rem;
     cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.log-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.slide-to-arm-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.slide-to-arm-wrapper.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.slide-to-arm-wrapper .slide-to-arm {
+    flex: 1;
+}
+
+.slide-to-arm {
+    position: relative;
+    width: 100%;
+    height: 60px;
+    background: #1a1f28;
+    border: 2px solid #30363d;
+    border-radius: 30px;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.slide-to-arm[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.slide-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.slide-text {
+    font-weight: 600;
+    color: #8b949e;
     font-size: 0.9rem;
+    letter-spacing: 0.05em;
+}
+
+.slide-button {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, #6eee5d, #08982a);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #fff;
+    cursor: grab;
+    transition: background 0.2s;
+    touch-action: none;
+}
+
+.slide-button:active {
+    cursor: grabbing;
+}
+
+.slide-button.armed {
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.slide-to-arm.armed .slide-track {
+    background: rgba(40, 167, 69, 0.2);
+}
+
+.slide-to-arm.armed .slide-text {
+    color: #28a745;
+}
+
+.status-indicators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(13, 17, 23, 0.5);
+    border-radius: 6px;
+    border: 1px solid #30363d;
+}
+
+.status-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.status-label {
+    font-size: 0.7rem;
+    color: #8b949e;
+    margin-right: 0.2rem;
+    font-weight: 600;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #30363d;
+    transition: background 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.status-dot.disconnected {
+    background: #30363d !important;
+    box-shadow: none !important;
+}
+
+.status-dot::after {
+    content: attr(data-name);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-5px);
+    background: rgba(13, 17, 23, 0.95);
+    color: #f0f6fc;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 1000;
+    border: 1px solid #30363d;
+}
+
+.status-dot:hover::after,
+.status-dot.show-label::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-8px);
+}
+
+.status-dot.active {
+    background: #28a745;
+    box-shadow: 0 0 4px #28a745;
+}
+
+.status-dot.inactive {
+    background: #dc3545;
+}
+
+.status-dot.warning {
+    background: #ff9800;
+    box-shadow: 0 0 4px #ff9800;
+}
+
+.status-dot.ok {
+    background: #28a745;
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -208,14 +434,14 @@ ul li {
 
 form {
     display: grid;
-    gap: 0.85rem;
+    gap: 0.5rem;
 }
 
 label {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.25rem;
 }
 
 input[type="number"],
@@ -223,12 +449,13 @@ input[type="text"],
 input[type="range"],
 textarea,
 select {
-    padding: 0.6rem;
-    border-radius: 8px;
+    padding: 0.45rem;
+    border-radius: 6px;
     border: 1px solid #30363d;
     background: #0d1117;
     color: #f0f6fc;
     font-family: inherit;
+    font-size: 0.8rem;
 }
 
 textarea {
@@ -242,16 +469,16 @@ input[type="range"] {
 .button-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 button {
     flex: 1;
-    min-width: 120px;
-    padding: 0.65rem 1rem;
-    border-radius: 8px;
+    min-width: 100px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
     border: none;
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     background: #238636;
@@ -298,23 +525,23 @@ button.ghost {
 }
 
 .profile-table {
-    margin-top: 1rem;
+    margin-top: 0.5rem;
     border: 1px solid #30363d;
-    border-radius: 8px;
+    border-radius: 6px;
 }
 
 .profile-table-header,
 .profile-table-row {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr auto;
-    gap: 0.5rem;
-    padding: 0.65rem 1rem;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
     border-bottom: 1px solid #30363d;
 }
 
 .profile-table-header {
     background: rgba(255, 255, 255, 0.02);
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -324,46 +551,62 @@ button.ghost {
     border-left: 3px solid #0b5cff;
 }
 
+.profile-table-row {
+    font-size: 0.8rem;
+}
+
 .profile-table-body .empty,
 .device-list .empty {
-    padding: 0.5rem 0;
+    padding: 0.4rem 0;
     color: #8b949e;
+    font-size: 0.75rem;
 }
 
 .profile-table-row button {
     flex: unset;
     min-width: unset;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
 }
 
 .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.metric-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
 }
 
 .metric {
-    padding: 1rem;
+    flex: 1;
+    padding: 0.5rem 0.75rem;
     border: 1px solid #30363d;
-    border-radius: 10px;
+    border-radius: 8px;
     background: #0d1117;
+    min-width: 0;
 }
 
 .metric h3 {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: #8b949e;
 }
 
+
+
 .metric p {
-    margin: 0.35rem 0 0;
-    font-size: 1.4rem;
+    margin: 0.25rem 0 0;
+    font-size: 1.1rem;
+    font-weight: 600;
 }
 
 #controlStatus {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.8rem;
     color: #8b949e;
 }
 
@@ -376,10 +619,15 @@ button.ghost {
 
 figure {
     margin: 0;
-    padding: 1rem;
+    padding: 0.75rem;
     border: 1px solid #30363d;
-    border-radius: 12px;
+    border-radius: 8px;
     background: #0d1117;
+}
+
+figcaption {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
 }
 
 figcaption {
@@ -391,15 +639,22 @@ figcaption {
 #logOutput {
     height: 320px;
     margin: 0;
-    padding: 1rem;
+    padding: 0.5rem;
     border: 1px solid #30363d;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #0d1117;
     overflow-y: auto;
     font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     white-space: pre-wrap;
+    line-height: 1.3;
 }
+
+.log-info { color: #28a745; }
+.log-warning { color: #ffc107; }
+.log-error { color: #dc3545; }
+.log-rx { color: #17a2b8; }
+.log-tx { color: #0d6efd; }
 
 footer {
     text-align: center;
@@ -548,9 +803,11 @@ footer {
         font-size: 0.85rem;
     }
 
-    .metric p {
-        font-size: 1.2rem;
+    .metric-icon {
+        font-size: 1.3rem;
     }
+
+    
 
     .chart-grid {
         grid-template-columns: 1fr;

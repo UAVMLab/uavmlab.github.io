@@ -9,7 +9,11 @@ export const state = {
         thrust: [],
         thermal: []
     },
-    connected: false
+    connected: false,
+    // Last received data from device
+    lastRxData: null,      // Last 'data' type message
+    lastRxStatus: null,    // Last 'status' type message
+    lastRxProfiles: null   // Last 'profiles' type message
 };
 
 // BLE connection state
