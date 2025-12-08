@@ -54,7 +54,7 @@ async function connectDevice() {
         setStatus('Requesting Bluetooth device...');
         appendLog('Initiating device scan...');
 
-        const options = scanAllDevicesCheckbox.checked
+        const options = (scanAllDevicesCheckbox && scanAllDevicesCheckbox.checked)
             ? { acceptAllDevices: true, optionalServices: [NUS_SERVICE_UUID, APP_DISCOVERY_SERVICE_UUID] }
             : { filters: [{ services: [NUS_SERVICE_UUID] }], optionalServices: [APP_DISCOVERY_SERVICE_UUID] };
 
