@@ -8,8 +8,12 @@ export function initConnectionTab() {
     const disconnectButton = document.getElementById('disconnectButton');
     // const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
 
-    connectButton.addEventListener('click', connectDevice);
-    disconnectButton.addEventListener('click', disconnectDevice);
+    if (connectButton) {
+        connectButton.addEventListener('click', connectDevice);
+    }
+    if (disconnectButton) {
+        disconnectButton.addEventListener('click', disconnectDevice);
+    }
     
     // Initialize device list
     renderDeviceList();
@@ -47,6 +51,10 @@ function renderDeviceList() {
 
 async function connectDevice() {
     vibrate(20); // Light vibration on button press
+    
+    // Wait a bit to ensure all components are loaded
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
     const deviceNameDisplay = document.getElementById('deviceName');
     
@@ -96,7 +104,17 @@ async function connectDevice() {
         }
 
         state.connectedDeviceId = device.id;
-        deviceNameDisplay.textContent = `Device: ${device.name || 'Unknown'}`;
+        const deviceNameDisplay = document.getElementById('deviceName');
+        if (deviceNameDisplay) {
+            deviceNameDisplay.textContent = `Device: ${device.name || 'Unknown'}`;
+        }
+        
+        // Update button states
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        if (connectButton) connectButton.disabled = true;
+        if (disconnectButton) disconnectButton.disabled = false;
+        
         setStatus(`Connected to ${device.name}`, true);
         vibratePattern([50, 50, 100]); // Success pattern
         appendLog('Connection established successfully!');
@@ -149,6 +167,11 @@ function updateRSSIDisplay(rssi) {
     const rssiValue = document.getElementById('rssiValue');
     const signalBars = document.querySelectorAll('#rssiIndicator .signal-bar');
     
+    // Add null checks for elements
+    if (!rssiValue || !signalBars || signalBars.length === 0) {
+        return; // Elements not yet loaded, skip update
+    }
+    
     if (rssi === null || rssi === undefined) {
         rssiValue.textContent = '--';
         signalBars.forEach(bar => bar.style.background = '#30363d');
@@ -188,10 +211,23 @@ function updateRSSIDisplay(rssi) {
 async function disconnectDevice() {
     vibrate(20); // Light vibration on button press
     const device = getBleDevice();
-    if (device && device.gatt.connected) {
-        device.gatt.disconnect();
-        vibrate(50); // Confirm disconnect
-        appendLog('Disconnect requested by user.');
+    
+    if (!device) {
+        appendLog('No device to disconnect.');
+        return;
+    }
+    
+    if (device.gatt && device.gatt.connected) {
+        try {
+            device.gatt.disconnect();
+            vibrate(50); // Confirm disconnect
+            appendLog('Disconnect requested by user.');
+        } catch (error) {
+            appendLog(`Disconnect error: ${error.message}`);
+            console.error('Disconnect error:', error);
+        }
+    } else {
+        appendLog('Device is not connected.');
     }
 }
 
@@ -200,7 +236,16 @@ function onDisconnected() {
     
     stopRSSIMonitoring(); // Stop RSSI monitoring
     setStatus('Device disconnected.');
-    deviceNameDisplay.textContent = 'Device: N/A';
+    if (deviceNameDisplay) {
+        deviceNameDisplay.textContent = 'Device: N/A';
+    }
+    
+    // Update button states
+    const connectButton = document.getElementById('connectButton');
+    const disconnectButton = document.getElementById('disconnectButton');
+    if (connectButton) connectButton.disabled = false;
+    if (disconnectButton) disconnectButton.disabled = true;
+    
     state.connectedDeviceId = null;
     appendLog('Device disconnected.');
     renderDeviceList();

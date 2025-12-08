@@ -32,8 +32,10 @@ export function toggleInterface(isConnected) {
 
 export function setStatus(message, isConnected = false) {
     const statusText = document.getElementById('statusText');
-    statusText.textContent = message;
-    statusText.style.color = isConnected ? '#28a745' : '#dc3545';
+    if (statusText) {
+        statusText.textContent = message;
+        statusText.style.color = isConnected ? '#28a745' : '#dc3545';
+    }
     state.connected = isConnected;
 
     document.querySelectorAll('[data-connected-only]').forEach((el) => {

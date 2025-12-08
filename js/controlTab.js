@@ -169,6 +169,8 @@ async function handleStopTest() {
 
 function setControlStatus(message, isPositive = true) {
     const controlStatus = document.getElementById('controlStatus');
-    controlStatus.textContent = message;
-    controlStatus.style.color = isPositive ? '#2ecc71' : '#dc3545';
+    if (controlStatus) {
+        controlStatus.textContent = message;
+        controlStatus.style.color = isPositive ? '#2ecc71' : '#dc3545';
+    }
 }
