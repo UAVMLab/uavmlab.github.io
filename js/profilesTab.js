@@ -70,8 +70,10 @@ export function handleProfileMessage(profile) {
     const normalizedProfile = {
         profileName: profile.name,
         motorKV: profile.mKV,
-        propellerDetails: profile.prop,
-        batteryType: profile.bat,
+        propDiameter: profile.propDiam,
+        propPitch: profile.propPitch,
+        propBlades: profile.propBlades,
+        batteryCellCount: profile.bat,
         motorPoles: profile.mPoles,
         motorReverse: profile.mRev,
         armThrottle: profile.armThrot,
@@ -149,7 +151,7 @@ function renderProfileList() {
             <div class="profile-list-name">
                 ${profile.profileName === currentActiveProfileName ? '✓ ' : ''}${profile.profileName}
             </div>
-            <div class="profile-list-details">${profile.motorKV} • ${profile.propellerDetails}</div>
+            <div class="profile-list-details">${profile.motorKV}KV • ${profile.propDiameter}×${profile.propPitch} ${profile.propBlades}B</div>
         `;
         item.addEventListener('click', () => showProfileDetails(profile));
         profileList.appendChild(item);
@@ -166,8 +168,10 @@ function showProfileDetails(profile) {
     // Populate form fields
     document.getElementById('profileName').value = profile.profileName || '';
     document.getElementById('motorKV').value = profile.motorKV || '';
-    document.getElementById('propellerDetails').value = profile.propellerDetails || '';
-    document.getElementById('batteryType').value = profile.batteryType || 0;
+    document.getElementById('propDiameter').value = profile.propDiameter || '';
+    document.getElementById('propPitch').value = profile.propPitch || '';
+    document.getElementById('propBlades').value = profile.propBlades || 3;
+    document.getElementById('batteryCellCount').value = profile.batteryCellCount || 0;
     document.getElementById('motorPoles').value = profile.motorPoles || 14;
     document.getElementById('motorReverse').checked = profile.motorReverse || false;
     document.getElementById('armThrottle').value = profile.armThrottle || 48;
@@ -227,9 +231,11 @@ async function saveProfile(e) {
     // Convert to device format
     const profileData = {
         name: enteredName,
-        mKV: document.getElementById('motorKV').value,
-        prop: document.getElementById('propellerDetails').value,
-        bat: parseInt(document.getElementById('batteryType').value),
+        mKV: parseInt(document.getElementById('motorKV').value),
+        propDiam: parseFloat(document.getElementById('propDiameter').value),
+        propPitch: parseFloat(document.getElementById('propPitch').value),
+        propBlades: parseInt(document.getElementById('propBlades').value),
+        bat: parseInt(document.getElementById('batteryCellCount').value),
         mPoles: parseInt(document.getElementById('motorPoles').value),
         mRev: document.getElementById('motorReverse').checked,
         armThrot: parseInt(document.getElementById('armThrottle').value),
@@ -334,8 +340,10 @@ function addNewProfile() {
     const newProfile = {
         profileName: 'New Profile',
         motorKV: '',
-        propellerDetails: '',
-        batteryType: 0,
+        propDiameter: '',
+        propPitch: '',
+        propBlades: 3,
+        batteryCellCount: 0,
         motorPoles: 14,
         motorReverse: false,
         armThrottle: 48,

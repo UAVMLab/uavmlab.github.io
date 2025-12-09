@@ -33,13 +33,23 @@
                 </label>
                 
                 <label class="inline-field">
-                    <span>Propeller Details</span>
-                    <input type="text" id="propellerDetails" required disabled>
+                    <span>Prop Diameter (inch)</span>
+                    <input type="number" id="propDiameter" required step="0.1" disabled>
                 </label>
                 
                 <label class="inline-field">
-                    <span>Battery Type</span>
-                    <select id="batteryType" required disabled>
+                    <span>Prop Pitch (inch)</span>
+                    <input type="number" id="propPitch" required step="0.1" disabled>
+                </label>
+                
+                <label class="inline-field">
+                    <span>Prop Blades</span>
+                    <input type="number" id="propBlades" required min="2" max="6" disabled>
+                </label>
+                
+                <label class="inline-field">
+                    <span>Battery Cell Count</span>
+                    <select id="batteryCellCount" required disabled>
                         <option value="0">Unknown</option>
                         <option value="1">1S LiPo</option>
                         <option value="2">2S LiPo</option>
