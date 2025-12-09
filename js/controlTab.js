@@ -149,8 +149,8 @@ function handleSlideMove(event) {
         lastVibrateProgress = progressStep;
         
         // Calculate vibration duration: starts at 15ms, increases to 60ms at 85%
-        const minDuration = 15;
-        const maxDuration = 60;
+        const minDuration = 100;
+        const maxDuration = 1000;
         const duration = Math.round(minDuration + (maxDuration - minDuration) * (progress / 0.85));
         
         vibrate(Math.min(duration, maxDuration));
@@ -171,7 +171,7 @@ function handleSlideEnd(event) {
     // If slid more than 85%, trigger arm
     if (progress > 0.85) {
         slideButton.style.transform = `translateX(${maxSlide}px) translateY(-50%)`;
-        vibratePattern([500, 100, 500]); // Very strong warning vibration
+        vibratePattern([2000, 500, 2000]); // Very strong warning vibration
         handleArm();
     } else {
         // Reset position with animation
