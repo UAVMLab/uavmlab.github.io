@@ -121,13 +121,15 @@ async function connectDevice() {
         appendLog('Connection established successfully!');
         renderDeviceList();
         
-        // Request firmware version
-        try {
-            await sendCommand('get_version');
-            appendLog('Requested firmware version from device.');
-        } catch (err) {
-            appendLog(`Failed to request version: ${err.message}`);
-        }
+        // Request firmware version after a delay to allow device to be ready
+        setTimeout(async () => {
+            try {
+                await sendCommand('get_version');
+                appendLog('Requested firmware version from device.');
+            } catch (err) {
+                appendLog(`Failed to request version: ${err.message}`);
+            }
+        }, 1000);
         
         // Start RSSI monitoring
         startRSSIMonitoring(device);
@@ -341,6 +343,13 @@ function handleTelemetry(event) {
             // Pass to profile handler
             if (typeof window.handleProfileMessage === 'function') {
                 window.handleProfileMessage(msg);
+            }
+        }
+        // Handle current profile response
+        else if (msg.type === 'cur_profile') {
+            console.log('Received cur_profile message:', msg);
+            if (msg.name !== undefined && typeof window.handleCurrentProfileMessage === 'function') {
+                window.handleCurrentProfileMessage(msg.name);
             }
         }
         // Handle legacy format with payload

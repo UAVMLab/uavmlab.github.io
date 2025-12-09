@@ -600,6 +600,16 @@ button.ghost {
     border-left: 3px solid #0b5cff;
 }
 
+.profile-list-item.current-active {
+    background: rgba(46, 204, 113, 0.1);
+    border-color: #2ecc71;
+    border-left: 3px solid #2ecc71;
+}
+
+.profile-list-item.current-active:hover {
+    background: rgba(46, 204, 113, 0.15);
+}
+
 .profile-list-name {
     font-size: 0.85rem;
     font-weight: 600;

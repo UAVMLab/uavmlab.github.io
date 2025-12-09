@@ -5,6 +5,7 @@ import { appendLog } from './utils.js';
 
 let currentProfile = null;
 let receivedProfiles = [];
+let currentActiveProfileName = null;
 
 export function initProfilesTab() {
     const loadProfilesButton = document.getElementById('loadProfilesButton');
@@ -34,10 +35,21 @@ async function loadProfilesFromDevice() {
     try {
         // Clear previous profiles
         receivedProfiles = [];
+        currentActiveProfileName = null;
         renderProfileList();
         
         await sendCommand('get_profile_list');
         appendLog('Requesting profile list from device...');
+        
+        // Request current active profile after a delay to allow profiles to load
+        setTimeout(async () => {
+            try {
+                await sendCommand('get_cur_profile');
+                appendLog('Requesting current active profile...');
+            } catch (error) {
+                appendLog(`Failed to request current profile: ${error.message}`);
+            }
+        }, 1000);
     } catch (error) {
         appendLog(`Failed to load profiles: ${error.message}`);
     }
@@ -47,19 +59,27 @@ export function handleProfileMessage(profile) {
     // Convert device profile format to internal format
     const normalizedProfile = {
         profileName: profile.name,
-        motorKV: profile.m_kv,
+        motorKV: profile.mKV,
         propellerDetails: profile.prop,
         batteryType: profile.bat,
-        motorPoles: profile.mPole,
+        motorPoles: profile.mPoles,
         motorReverse: profile.mRev,
-        armThrottle: profile.armThrt,
+        armThrottle: profile.armThrot,
         maxRPM: profile.mRpmLim,
         maxESCTemp: profile.escTempLim,
         maxMotorTemp: profile.mTempLim,
         maxCurrent: profile.curLim
     };
     
-    receivedProfiles.push(normalizedProfile);
+    // Check if profile already exists (prevent duplicates)
+    const existingIndex = receivedProfiles.findIndex(p => p.profileName === normalizedProfile.profileName);
+    if (existingIndex !== -1) {
+        // Update existing profile instead of adding duplicate
+        receivedProfiles[existingIndex] = normalizedProfile;
+    } else {
+        // Add new profile
+        receivedProfiles.push(normalizedProfile);
+    }
     
     // Update the profiles in state
     if (!state.lastRxProfiles) {
@@ -70,6 +90,14 @@ export function handleProfileMessage(profile) {
     // Re-render the list
     renderProfileList();
     appendLog(`Profile "${profile.name}" received.`);
+}
+
+export function handleCurrentProfileMessage(profileName) {
+    currentActiveProfileName = profileName;
+    console.log('Current active profile set to:', `"${currentActiveProfileName}"`);
+    console.log('Available profiles:', receivedProfiles.map(p => `"${p.profileName}"`));
+    appendLog(`Current active profile: "${profileName}"`);
+    renderProfileList();
 }
 
 function renderProfileList() {
@@ -84,14 +112,33 @@ function renderProfileList() {
         return;
     }
 
-    state.lastRxProfiles.profiles.forEach((profile) => {
+    // Sort profiles: current active profile first, then alphabetically
+    const sortedProfiles = [...state.lastRxProfiles.profiles].sort((a, b) => {
+        if (a.profileName === currentActiveProfileName) return -1;
+        if (b.profileName === currentActiveProfileName) return 1;
+        return a.profileName.localeCompare(b.profileName);
+    });
+
+    sortedProfiles.forEach((profile) => {
         const item = document.createElement('div');
         item.className = 'profile-list-item';
+        
+        console.log('Comparing:', profile.profileName, 'with current:', currentActiveProfileName, 'Match:', profile.profileName === currentActiveProfileName);
+        
+        // Highlight current active profile
+        if (profile.profileName === currentActiveProfileName) {
+            item.classList.add('current-active');
+        }
+        
+        // Highlight selected profile for viewing/editing
         if (currentProfile && currentProfile.profileName === profile.profileName) {
             item.classList.add('active');
         }
+        
         item.innerHTML = `
-            <div class="profile-list-name">${profile.profileName}</div>
+            <div class="profile-list-name">
+                ${profile.profileName === currentActiveProfileName ? '✓ ' : ''}${profile.profileName}
+            </div>
             <div class="profile-list-details">${profile.motorKV} • ${profile.propellerDetails}</div>
         `;
         item.addEventListener('click', () => showProfileDetails(profile));
@@ -170,12 +217,12 @@ async function saveProfile(e) {
     // Convert to device format
     const profileData = {
         name: enteredName,
-        m_kv: document.getElementById('motorKV').value,
+        mKV: document.getElementById('motorKV').value,
         prop: document.getElementById('propellerDetails').value,
         bat: parseInt(document.getElementById('batteryType').value),
-        mPole: parseInt(document.getElementById('motorPoles').value),
+        mPoles: parseInt(document.getElementById('motorPoles').value),
         mRev: document.getElementById('motorReverse').checked,
-        armThrt: parseInt(document.getElementById('armThrottle').value),
+        armThrot: parseInt(document.getElementById('armThrottle').value),
         mRpmLim: parseInt(document.getElementById('maxRPM').value),
         escTempLim: parseFloat(document.getElementById('maxESCTemp').value),
         mTempLim: parseFloat(document.getElementById('maxMotorTemp').value),
@@ -183,8 +230,8 @@ async function saveProfile(e) {
     };
     
     // Validate motor poles (must be even)
-    if (profileData.mPole % 2 !== 0) {
-        appendLog('ERROR: Motor poles must be an even number');
+    if (profileData.mPoles % 2 !== 0 || profileData.mPoles < 2) {
+        appendLog('ERROR: Motor poles must be an even number greater than or equal to 2.');
         return;
     }
     
@@ -226,6 +273,11 @@ async function setActiveProfile() {
     try {
         await sendCommand('load_profile', { value: currentProfile.profileName });
         appendLog(`Set profile "${currentProfile.profileName}" as active.`);
+        
+        // Refresh the profile list to update the current active profile highlighting
+        setTimeout(() => {
+            loadProfilesFromDevice();
+        }, 500);
     } catch (error) {
         appendLog(`Failed to set profile: ${error.message}`);
     }

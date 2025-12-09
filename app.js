@@ -3,7 +3,7 @@ import { loadComponents } from './js/componentLoader.js';
 import { setStatus } from './js/utils.js';
 import { initNavigation } from './js/navigation.js';
 import { initConnectionTab } from './js/connectionTab.js';
-import { initProfilesTab, updateProfileList, handleProfileMessage } from './js/profilesTab.js';
+import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage } from './js/profilesTab.js';
 import { initControlTab } from './js/controlTab.js';
 import { initResultsTab } from './js/resultsTab.js';
 import { initLogsTab } from './js/logsTab.js';
@@ -11,6 +11,7 @@ import { initLogsTab } from './js/logsTab.js';
 // Expose functions globally so connectionTab can call them
 window.updateProfileList = updateProfileList;
 window.handleProfileMessage = handleProfileMessage;
+window.handleCurrentProfileMessage = handleCurrentProfileMessage;
 
 // Initialize all modules
 async function initApp() {
