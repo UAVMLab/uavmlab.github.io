@@ -288,6 +288,20 @@ html {
     padding: 0.4rem;
 }
 
+#tab-profiles label.inline-field {
+    font-size: 0.75rem;
+}
+
+#tab-profiles label.inline-field > span:first-child {
+    font-size: 0.75rem;
+}
+
+#tab-profiles label.inline-field input,
+#tab-profiles label.inline-field select {
+    font-size: 0.75rem;
+    padding: 0.35rem;
+}
+
 /* Results tab cards styling */
 #tab-results .card .subtext {
     font-size: 0.7rem;
