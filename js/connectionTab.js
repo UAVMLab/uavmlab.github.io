@@ -10,7 +10,7 @@ import { checkMotorStatus } from './controlTab.js';
 export function updateControlsAvailability() {
     const controlElements = document.querySelectorAll('[data-profile-required]');
     const controlStatus = document.getElementById('controlStatus');
-    const telemetryCard = document.querySelector('.card');
+    const telemetryCard = document.querySelector('#tab-control .card:first-child');
     
     const activeProfileName = getCurrentActiveProfileName();
     const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';
@@ -82,6 +82,7 @@ export function updateControlsAvailability() {
 export function initConnectionTab() {
     const connectButton = document.getElementById('connectButton');
     const disconnectButton = document.getElementById('disconnectButton');
+    const setDeviceIdButton = document.getElementById('setDeviceIdButton');
     // const scanAllDevicesCheckbox = document.getElementById('scanAllDevices');
 
     if (connectButton) {
@@ -89,6 +90,9 @@ export function initConnectionTab() {
     }
     if (disconnectButton) {
         disconnectButton.addEventListener('click', disconnectDevice);
+    }
+    if (setDeviceIdButton) {
+        setDeviceIdButton.addEventListener('click', handleSetDeviceId);
     }
     
     // Initialize device list
@@ -123,6 +127,26 @@ function renderDeviceList() {
         }
         deviceList.appendChild(li);
     });
+}
+
+function handleSetDeviceId() {
+    const deviceIdInput = document.getElementById('deviceIdInput');
+    const deviceId = parseInt(deviceIdInput.value, 10);
+    
+    if (isNaN(deviceId) || deviceId < 0 || deviceId > 255) {
+        setStatus('Invalid device ID. Must be between 0-255.', false);
+        vibrate(50);
+        return;
+    }
+    
+    const idVal = {
+        value: deviceId
+    };
+    
+    sendCommand('set_dev_id', idVal);
+    setStatus(`Setting device ID to ${deviceId}... You will need to reconnect to see the updated device name.`, true);
+    appendLog(`Sending set_dev_id command: ${deviceId}. Reconnect required for name update.`);
+    vibrate(20);
 }
 
 async function connectDevice() {
@@ -453,6 +477,12 @@ function handleTelemetry(event) {
         // Handle acknowledgments
         else if (msg.type === 'ACK' || msg.type === 'ack') {
             appendLog(`ACK received for command: ${msg.command || 'unknown'}`);
+            
+            // Handle set_dev_id acknowledgment
+            if (msg.command === 'set_dev_id') {
+                setStatus('Device ID updated successfully. Please disconnect and reconnect to see the new device name.', true);
+                appendLog('Device ID changed - reconnection recommended to update display.');
+            }
         }
         // Handle device info
         else if (msg.type === 'DEVICE_INFO' && msg.payload) {

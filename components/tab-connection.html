@@ -37,6 +37,18 @@
         </section>
 
         <section class="card">
+            <h2>Device ID Configuration</h2>
+            <div class="inline-field">
+                <label for="deviceIdInput">Device ID:</label>
+                <input type="number" id="deviceIdInput" min="0" max="255" step="1" value="0" data-connected-only>
+                <button id="setDeviceIdButton" data-connected-only>Set ID</button>
+            </div>
+            <p class="subtext" style="margin-top: 0.5rem; font-size: 0.75rem; color: #8b949e;">
+                ⚠️ Setting a new ID will reboot the device and disconnect. After disconnection, refresh the page and reconnect to see the updated device name.
+            </p>
+        </section>
+
+        <section class="card">
             <h2>Device Snapshot</h2>
             <ul>
                 <li>Firmware: v<span id="firmwareVersion">--</span></li>
