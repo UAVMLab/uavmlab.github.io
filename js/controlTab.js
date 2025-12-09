@@ -6,6 +6,7 @@ import { appendLog, vibrate, vibratePattern } from './utils.js';
 let throttleSendTimeout = null;
 let lastThrottleValue = null;
 let isThrottleSending = false;
+let lastHapticValue = null;
 
 // Slide to arm state
 let isDragging = false;
@@ -245,9 +246,11 @@ async function handleThrottleInput() {
     // Convert raw value (48-2047) to percentage (0-100) with 2 decimals
     const percentage = ((value - 48) / (2047 - 48) * 100).toFixed(2);
     
-    // Vibrate at intervals for feedback while sliding
-    if (value % 50 === 0) {
-        vibrate(5); // Very light haptic tick
+    // Haptic feedback at 5% intervals (approximately every 100 raw value units)
+    const currentStep = Math.floor(value / 100);
+    if (lastHapticValue !== currentStep) {
+        vibrate(3); // Very light haptic tick
+        lastHapticValue = currentStep;
     }
     
     // Update displayed throttle percentage immediately
