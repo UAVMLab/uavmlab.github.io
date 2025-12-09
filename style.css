@@ -971,20 +971,30 @@ footer {
         font-size: 0.85rem;
     }
 
-    /* Profile form inline fields - reduce label width for mobile */
+    /* Profile form inline fields - stack vertically on mobile */
+    label.inline-field {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.3rem;
+    }
+
     label.inline-field > span:first-child {
-        min-width: 140px;
+        min-width: unset;
+        text-align: left;
         font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    label.checkbox-label.inline-field {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     label.checkbox-label.inline-field > span:first-child {
-        min-width: 140px;
+        min-width: unset;
+        text-align: left;
         font-size: 0.85rem;
-    }
-
-    /* Adjust gap for tighter spacing on mobile */
-    label.inline-field {
-        gap: 0.5rem;
     }
 }
 
