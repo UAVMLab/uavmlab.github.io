@@ -150,7 +150,7 @@ function handleSetDeviceId() {
 }
 
 async function connectDevice() {
-    vibrate(20); // Light vibration on button press
+    vibrate(40); // Light vibration on button press
     
     // Wait a bit to ensure all components are loaded
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -331,7 +331,7 @@ async function disconnectDevice() {
     if (device.gatt && device.gatt.connected) {
         try {
             device.gatt.disconnect();
-            vibrate(50); // Confirm disconnect
+            vibrate(80); // Confirm disconnect
             appendLog('Disconnect requested by user.');
             
             // Manually trigger cleanup in case event doesn't fire

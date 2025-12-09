@@ -1,7 +1,7 @@
 // Profiles tab module
 import { state } from './state.js';
 import { sendCommand } from './bluetooth.js';
-import { appendLog } from './utils.js';
+import { appendLog, vibrate, vibratePattern } from './utils.js';
 
 let currentProfile = null;
 let receivedProfiles = [];
@@ -58,6 +58,7 @@ function onProfilesTabOpen() {
 }
 
 async function loadProfilesFromDevice() {
+    vibrate(30); // Light feedback for load action
     try {
         // Clear previous profiles
         receivedProfiles = [];
@@ -170,7 +171,10 @@ function renderProfileList() {
             </div>
             <div class="profile-list-details">${profile.motorKV}KV • ${profile.propDiameter}×${profile.propPitch} ${profile.propBlades}B</div>
         `;
-        item.addEventListener('click', () => showProfileDetails(profile));
+        item.addEventListener('click', () => {
+            vibrate(25);
+            showProfileDetails(profile);
+        });
         profileList.appendChild(item);
     });
 }
@@ -208,6 +212,7 @@ function showProfileDetails(profile) {
 
 function toggleModifyMode() {
     const isModifying = document.getElementById('modifyProfileCheckbox').checked;
+    vibrate(isModifying ? 40 : 30); // Stronger for enable, lighter for disable
     const formFields = document.querySelectorAll('#profileForm input, #profileForm select');
     const profileActions = document.getElementById('profileActions');
     const modifyActions = document.getElementById('profileModifyActions');
@@ -279,6 +284,7 @@ async function saveProfile(e) {
     
     try {
         await sendCommand(command, profileData);
+        vibratePattern([80, 40, 80]); // Success pattern for save
         appendLog(`Profile "${profileData.name}" ${isNewOrRenamed ? 'create' : 'save'} requested.`);
         
         // Update current profile name
@@ -288,11 +294,13 @@ async function saveProfile(e) {
         document.getElementById('modifyProfileCheckbox').checked = false;
         toggleModifyMode();
     } catch (error) {
+        vibratePattern([300]); // Error vibration
         appendLog(`Failed to ${isNewOrRenamed ? 'create' : 'save'} profile: ${error.message}`);
     }
 }
 
 function cancelModify() {
+    vibrate(30); // Light feedback for cancel
     // Reset form to current profile values
     if (currentProfile) {
         showProfileDetails(currentProfile);
@@ -307,6 +315,7 @@ async function setActiveProfile() {
     
     try {
         await sendCommand('load_profile', { value: currentProfile.profileName });
+        vibratePattern([50, 30, 80]); // Success pattern for set active
         appendLog(`Set profile "${currentProfile.profileName}" as active.`);
         
         // Refresh the profile list to update the current active profile highlighting
@@ -314,6 +323,7 @@ async function setActiveProfile() {
             loadProfilesFromDevice();
         }, 500);
     } catch (error) {
+        vibratePattern([300]); // Error vibration
         appendLog(`Failed to set profile: ${error.message}`);
     }
 }
@@ -322,17 +332,20 @@ async function removeProfile() {
     if (!currentProfile) return;
     
     if (!confirm(`Are you sure you want to remove profile "${currentProfile.profileName}"?`)) {
+        vibrate(30); // Cancelled
         return;
     }
     
     try {
         await sendCommand('delete_profile', { value: currentProfile.profileName });
+        vibratePattern([100, 50, 100]); // Warning pattern for delete
         appendLog(`Profile "${currentProfile.profileName}" removal requested.`);
         
         // Hide details card and clear current profile
         document.getElementById('profileDetailsCard').style.display = 'none';
         currentProfile = null;
     } catch (error) {
+        vibratePattern([300]); // Error vibration
         appendLog(`Failed to remove profile: ${error.message}`);
     }
 }
@@ -340,6 +353,7 @@ async function removeProfile() {
 function downloadProfile() {
     if (!currentProfile) return;
     
+    vibrate(50); // Medium feedback for download
     const dataStr = JSON.stringify(currentProfile, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -355,6 +369,7 @@ function downloadProfile() {
 }
 
 function addNewProfile() {
+    vibrate(40); // Feedback for new profile
     // Create a new empty profile
     const newProfile = {
         profileName: 'New Profile',

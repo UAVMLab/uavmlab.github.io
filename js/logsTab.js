@@ -1,5 +1,5 @@
 // Logs tab module
-import { logFilters, updateLogDisplay } from './utils.js';
+import { logFilters, updateLogDisplay, vibrate } from './utils.js';
 
 export function initLogsTab() {
     const infoCheckbox = document.getElementById('infoLogCheckbox');
@@ -11,6 +11,7 @@ export function initLogsTab() {
     // Set up filter event listeners
     if (infoCheckbox) {
         infoCheckbox.addEventListener('change', (e) => {
+            vibrate(50);
             logFilters.info = e.target.checked;
             updateLogDisplay();
         });
@@ -18,6 +19,7 @@ export function initLogsTab() {
     
     if (warningCheckbox) {
         warningCheckbox.addEventListener('change', (e) => {
+            vibrate(50);
             logFilters.warning = e.target.checked;
             updateLogDisplay();
         });
@@ -25,6 +27,7 @@ export function initLogsTab() {
     
     if (errorCheckbox) {
         errorCheckbox.addEventListener('change', (e) => {
+            vibrate(50);
             logFilters.error = e.target.checked;
             updateLogDisplay();
         });
@@ -32,6 +35,7 @@ export function initLogsTab() {
     
     if (rxCheckbox) {
         rxCheckbox.addEventListener('change', (e) => {
+            vibrate(50);
             logFilters.rx = e.target.checked;
             updateLogDisplay();
         });
@@ -39,6 +43,7 @@ export function initLogsTab() {
     
     if (txCheckbox) {
         txCheckbox.addEventListener('change', (e) => {
+            vibrate(50);
             logFilters.tx = e.target.checked;
             updateLogDisplay();
         });

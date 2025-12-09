@@ -85,7 +85,7 @@ function initStatusDotHandlers() {
             } else {
                 dot.classList.add('show-label');
                 activeLabel = dot;
-                vibrate(10);
+                vibrate(25);
                 
                 // Auto-hide after 2 seconds
                 setTimeout(() => {
@@ -100,7 +100,7 @@ function initStatusDotHandlers() {
         // Click events for desktop
         dot.addEventListener('click', (e) => {
             e.preventDefault();
-            vibrate(10);
+            vibrate(25);
         });
     });
     
@@ -120,7 +120,7 @@ function handleSlideStart(event) {
     event.preventDefault();
     isDragging = true;
     startX = event.type.includes('mouse') ? event.clientX : event.touches[0].clientX;
-    vibrate(10);
+    vibrate(25);
 }
 
 function handleSlideMove(event) {
@@ -141,9 +141,9 @@ function handleSlideMove(event) {
     // Haptic feedback at milestones
     const progress = currentX / maxSlide;
     if (progress > 0.5 && progress < 0.52) {
-        vibrate(5);
+        vibrate(25);
     } else if (progress > 0.75 && progress < 0.77) {
-        vibrate(8);
+        vibrate(30);
     }
 }
 
@@ -161,13 +161,13 @@ function handleSlideEnd(event) {
     // If slid more than 85%, trigger arm
     if (progress > 0.85) {
         slideButton.style.transform = `translateX(${maxSlide}px) translateY(-50%)`;
-        vibratePattern([50, 30, 50]);
+        vibratePattern([1000, 50, 100]);
         handleArm();
     } else {
         // Reset position with animation
         slideButton.style.transition = 'transform 0.3s ease-out';
         slideButton.style.transform = 'translateX(0) translateY(-50%)';
-        vibrate(15);
+        vibrate(30);
         setTimeout(() => {
             slideButton.style.transition = '';
         }, 300);
@@ -187,7 +187,7 @@ async function handleArm() {
     try {
         await sendCommand(cmd);
         isArmed = true;
-        vibratePattern([50, 50, 100]); // Success pattern
+        vibratePattern([100, 50, 150]); // Success pattern
         setControlStatus(`Motor ${isForceArm ? 'force ' : ''}armed.`);
         
         // Update UI
@@ -195,7 +195,7 @@ async function handleArm() {
         if (slideToArm) slideToArm.classList.add('armed');
         if (slideText) slideText.textContent = 'ARMED ✓';
     } catch (error) {
-        vibratePattern([200]); // Long vibration for error
+        vibratePattern([300]); // Long vibration for error
         setControlStatus(`Arm failed: ${error.message}`, false);
         resetSlideToArm();
     }
@@ -229,7 +229,7 @@ export function checkMotorStatus(status) {
                 
                 if (stillArmed && stillNotSpinning) {
                     appendLog('Auto-disarm: Motor armed but not spinning for 2 seconds.');
-                    vibratePattern([100, 50, 100]); // Warning pattern
+                    vibratePattern([150, 70, 150]); // Warning pattern
                     autoDisarmInProgress = true;
                     handleDisarm().finally(() => {
                         autoDisarmInProgress = false;
@@ -250,14 +250,14 @@ export function checkMotorStatus(status) {
 }
 
 async function handleDisarm() {
-    vibrate(20); // Light vibration on button press
+    vibrate(40); // Light vibration on button press
     try {
         await sendCommand('disarm');
-        vibrate(50); // Medium vibration for disarm
+        vibrate(80); // Medium vibration for disarm
         setControlStatus('Motor disarmed.');
         resetSlideToArm();
     } catch (error) {
-        vibratePattern([200]); // Long vibration for error
+        vibratePattern([300]); // Long vibration for error
         setControlStatus(`Disarm failed: ${error.message}`, false);
     }
 }
@@ -282,7 +282,7 @@ function resetSlideToArm() {
 
 function handleForceArmChange(event) {
     if (event.target.checked) {
-        vibratePattern([100, 50, 100]); // Warning pattern
+        vibratePattern([150, 70, 150]); // Warning pattern
         const confirmed = confirm(
             '⚠️ WARNING: Force Arm Override\n\n' +
             'You are about to enable FORCE ARM mode. This bypasses safety checks and can be dangerous.\n\n' +
@@ -290,12 +290,12 @@ function handleForceArmChange(event) {
         );
         if (!confirmed) {
             event.target.checked = false;
-            vibrate(30); // Cancelled
+            vibrate(80); // Cancelled
         } else {
-            vibratePattern([50, 30, 50, 30, 50]); // Confirmed pattern
+            vibratePattern([80, 40, 80, 40, 80]); // Confirmed pattern
         }
     } else {
-        vibrate(15); // Light vibration for unchecking
+        vibrate(40); // Light vibration for unchecking
     }
 }
 
@@ -310,7 +310,7 @@ async function handleThrottleInput() {
     // Haptic feedback at 5% intervals (approximately every 100 raw value units)
     const currentStep = Math.floor(value / 100);
     if (lastHapticValue !== currentStep) {
-        vibrate(3); // Very light haptic tick
+        vibrate(15); // Very light haptic tick
         lastHapticValue = currentStep;
     }
     
@@ -382,51 +382,51 @@ async function sendThrottleCommand(value, percentage) {
 // }
 
 async function handleTestModeChange() {
-    vibrate(15); // Light vibration on select change
+    vibrate(30); // Light vibration on select change
     const testModeSelect = document.getElementById('testMode');
     try {
         await sendCommand('SET_TEST_MODE', { mode: testModeSelect.value });
-        vibrate(30); // Confirm command sent
+        vibrate(50); // Confirm command sent
         setControlStatus(`Test mode set to ${testModeSelect.value}.`);
     } catch (error) {
-        vibratePattern([200]); // Long vibration for error
+        vibratePattern([300]); // Long vibration for error
         setControlStatus(`Failed to set test mode: ${error.message}`, false);
     }
 }
 
 async function handleTestDurationChange() {
-    vibrate(15); // Light vibration on input change
+    vibrate(30); // Light vibration on input change
     const testDurationInput = document.getElementById('testDuration');
     try {
         await sendCommand('SET_TEST_DURATION', { duration: Number(testDurationInput.value) });
-        vibrate(30); // Confirm command sent
+        vibrate(50); // Confirm command sent
     } catch (error) {
         appendLog(`Failed to update test duration: ${error.message}`);
     }
 }
 
 async function handleRunTest() {
-    vibratePattern([50, 30, 50]); // Start test pattern
+    vibratePattern([80, 40, 80]); // Start test pattern
     const testDurationInput = document.getElementById('testDuration');
     const testModeSelect = document.getElementById('testMode');
     try {
         await sendCommand('RUN_TEST', { duration: Number(testDurationInput.value), mode: testModeSelect.value });
-        vibratePattern([100, 50, 100]); // Test running confirmation
+        vibratePattern([150, 70, 150]); // Test running confirmation
         setControlStatus('Test running...');
     } catch (error) {
-        vibratePattern([200, 100, 200]); // Error pattern
+        vibratePattern([300, 150, 300]); // Error pattern
         setControlStatus(`Test start failed: ${error.message}`, false);
     }
 }
 
 async function handleStopTest() {
-    vibratePattern([30, 20, 30]); // Stop pattern
+    vibratePattern([50, 30, 50]); // Stop pattern
     try {
         await sendCommand('STOP_TEST');
-        vibrate(50); // Stop confirmed
+        vibrate(80); // Stop confirmed
         setControlStatus('Stop signal sent.');
     } catch (error) {
-        vibratePattern([200]); // Long vibration for error
+        vibratePattern([300]); // Long vibration for error
         setControlStatus(`Test stop failed: ${error.message}`, false);
     }
 }
