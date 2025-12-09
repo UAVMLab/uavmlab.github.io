@@ -248,6 +248,22 @@ ul li {
     font-size: 0.8rem;
 }
 
+.checkbox-label.inline-field {
+    justify-content: flex-start;
+    flex-direction: row;
+    gap: 0.3rem;
+}
+
+.checkbox-label.inline-field span {
+    order: -1;
+    flex-shrink: 0;
+}
+
+.checkbox-label.inline-field input[type="checkbox"] {
+    order: 1;
+    flex-shrink: 0;
+}
+
 .log-filters {
     display: flex;
     flex-wrap: wrap;
@@ -442,6 +458,36 @@ label {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+}
+
+label.inline-field {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+}
+
+label.inline-field > span:first-child {
+    min-width: 180px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+label.checkbox-label.inline-field {
+    justify-content: flex-start;
+    gap: 0.3rem;
+}
+
+label.checkbox-label.inline-field > span:first-child {
+    min-width: 180px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+label.inline-field input,
+label.inline-field select {
+    flex: 1;
+    min-width: 0;
 }
 
 input[type="number"],

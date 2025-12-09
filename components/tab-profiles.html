@@ -22,23 +22,23 @@
             </div>
             
             <form id="profileForm">
-                <label>
-                    Profile Name
+                <label class="inline-field">
+                    <span>Profile Name</span>
                     <input type="text" id="profileName" required disabled>
                 </label>
                 
-                <label>
-                    Motor KV
+                <label class="inline-field">
+                    <span>Motor KV</span>
                     <input type="text" id="motorKV" required disabled>
                 </label>
                 
-                <label>
-                    Propeller Details
+                <label class="inline-field">
+                    <span>Propeller Details</span>
                     <input type="text" id="propellerDetails" required disabled>
                 </label>
                 
-                <label>
-                    Battery Type
+                <label class="inline-field">
+                    <span>Battery Type</span>
                     <select id="batteryType" required disabled>
                         <option value="0">Unknown</option>
                         <option value="1">1S LiPo</option>
@@ -60,38 +60,39 @@
                     </select>
                 </label>
                 
-                <label>
-                    Motor Poles (even numbers only)
+                <label class="inline-field">
+                    <span>Motor Poles</span>
                     <input type="number" id="motorPoles" required min="2" step="2" disabled>
                 </label>
                 
-                <label class="checkbox-label">
-                    <input type="checkbox" id="motorReverse" disabled>
+                <label class="checkbox-label inline-field">
                     <span>Motor Reverse</span>
+                    <input type="checkbox" id="motorReverse" disabled>
+                    <span style="flex: 1; order: 2;"></span>
                 </label>
                 
-                <label>
-                    Arm Throttle (48-2047)
+                <label class="inline-field">
+                    <span>Arm Throttle (48-2047)</span>
                     <input type="number" id="armThrottle" required min="48" max="2047" disabled>
                 </label>
                 
-                <label>
-                    Max RPM
+                <label class="inline-field">
+                    <span>Max RPM</span>
                     <input type="number" id="maxRPM" required min="0" disabled>
                 </label>
                 
-                <label>
-                    Max ESC Temperature (°C)
+                <label class="inline-field">
+                    <span>Max ESC Temperature (°C)</span>
                     <input type="number" id="maxESCTemp" required step="0.1" disabled>
                 </label>
                 
-                <label>
-                    Max Motor Temperature (°C)
+                <label class="inline-field">
+                    <span>Max Motor Temperature (°C)</span>
                     <input type="number" id="maxMotorTemp" required step="0.1" disabled>
                 </label>
                 
-                <label>
-                    Max Current (A)
+                <label class="inline-field">
+                    <span>Max Current (A)</span>
                     <input type="number" id="maxCurrent" required step="0.1" disabled>
                 </label>
 

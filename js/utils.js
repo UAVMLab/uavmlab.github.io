@@ -31,6 +31,11 @@ export function switchTab(tabName) {
     
     // Scroll to top when switching tabs
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Call tab-specific handlers
+    if (tabName === 'profiles' && typeof window.onProfilesTabOpen === 'function') {
+        window.onProfilesTabOpen();
+    }
 }
 
 export function toggleInterface(isConnected) {

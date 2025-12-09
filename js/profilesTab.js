@@ -27,8 +27,18 @@ export function initProfilesTab() {
     downloadProfileButton.addEventListener('click', downloadProfile);
     cancelModifyButton.addEventListener('click', cancelModify);
     
+    // Set up callback for when profiles tab is opened
+    window.onProfilesTabOpen = onProfilesTabOpen;
+    
     // Initialize profile display
     renderProfileList();
+}
+
+function onProfilesTabOpen() {
+    // Auto-load profiles when tab is opened if connected
+    if (state.connected) {
+        loadProfilesFromDevice();
+    }
 }
 
 async function loadProfilesFromDevice() {
@@ -310,8 +320,10 @@ function downloadProfile() {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${currentProfile.profileName}.json`;
+    link.download = `${currentProfile.profileName.replace(/[^a-z0-9]/gi, '_')}.json`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
     appendLog(`Profile "${currentProfile.profileName}" downloaded.`);
