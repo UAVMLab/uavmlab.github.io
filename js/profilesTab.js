@@ -12,6 +12,12 @@ export function getCurrentActiveProfileName() {
     return currentActiveProfileName;
 }
 
+// Getter for current active profile data
+export function getCurrentActiveProfile() {
+    if (!currentActiveProfileName) return null;
+    return receivedProfiles.find(p => p.profileName === currentActiveProfileName) || null;
+}
+
 // Reset active profile (called on disconnect)
 export function resetActiveProfile() {
     currentActiveProfileName = null;
@@ -69,7 +75,7 @@ async function loadProfilesFromDevice() {
             } catch (error) {
                 appendLog(`Failed to request current profile: ${error.message}`);
             }
-        }, 1000);
+        }, 2000);
     } catch (error) {
         appendLog(`Failed to load profiles: ${error.message}`);
     }
@@ -90,7 +96,8 @@ export function handleProfileMessage(profile) {
         maxRPM: profile.mRpmLim,
         maxESCTemp: profile.escTempLim,
         maxMotorTemp: profile.mTempLim,
-        maxCurrent: profile.curLim
+        maxCurrent: profile.curLim,
+        maxThrust: profile.thrustLim || 10.0
     };
     
     // Check if profile already exists (prevent duplicates)
@@ -189,6 +196,7 @@ function showProfileDetails(profile) {
     document.getElementById('maxESCTemp').value = profile.maxESCTemp || 0;
     document.getElementById('maxMotorTemp').value = profile.maxMotorTemp || 0;
     document.getElementById('maxCurrent').value = profile.maxCurrent || 0;
+    document.getElementById('maxThrust').value = profile.maxThrust || 10.0;
     
     // Reset modify mode
     document.getElementById('modifyProfileCheckbox').checked = false;
@@ -252,7 +260,8 @@ async function saveProfile(e) {
         mRpmLim: parseInt(document.getElementById('maxRPM').value),
         escTempLim: parseFloat(document.getElementById('maxESCTemp').value),
         mTempLim: parseFloat(document.getElementById('maxMotorTemp').value),
-        curLim: parseFloat(document.getElementById('maxCurrent').value)
+        curLim: parseFloat(document.getElementById('maxCurrent').value),
+        thrustLim: parseFloat(document.getElementById('maxThrust').value)
     };
     
     // Validate motor poles (must be even)
@@ -360,7 +369,8 @@ function addNewProfile() {
         maxRPM: 0,
         maxESCTemp: 0,
         maxMotorTemp: 0,
-        maxCurrent: 0
+        maxCurrent: 0,
+        maxThrust: 10.0
     };
     
     showProfileDetails(newProfile);

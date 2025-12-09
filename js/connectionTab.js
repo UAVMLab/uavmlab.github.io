@@ -2,8 +2,8 @@
 import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUID, APP_DISCOVERY_SERVICE_UUID, APP_INFO_CHARACTERISTIC_UUID, decoder } from './constants.js';
 import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from './state.js';
 import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
-import { sendCommand } from './bluetooth.js';
-import { getCurrentActiveProfileName } from './profilesTab.js';
+import { sendCommand, clearCommandQueue } from './bluetooth.js';
+import { getCurrentActiveProfileName, getCurrentActiveProfile } from './profilesTab.js';
 import { resetActiveProfile } from './profilesTab.js';
 import { checkMotorStatus } from './controlTab.js';
 
@@ -369,6 +369,7 @@ function onDisconnected() {
     
     state.connectedDeviceId = null;
     resetActiveProfile(); // Clear active profile on disconnect
+    clearCommandQueue(); // Clear pending Bluetooth commands
     appendLog('Device disconnected.');
     renderDeviceList();
     setBleDevice(null);
@@ -376,6 +377,204 @@ function onDisconnected() {
     setCommandCharacteristic(null);
     setTelemetryCharacteristic(null);
     updateControlsAvailability();
+}
+
+function updateBatteryIndicator(voltage) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.batteryCellCount || activeProfile.batteryCellCount === 0) {
+        // No battery info, clear indicator
+        const voltageMetricParent = document.querySelector('.metric:has(#voltageMetric)');
+        if (voltageMetricParent) {
+            voltageMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    const cellCount = activeProfile.batteryCellCount;
+    const minVoltagePerCell = 3.0;  // Empty voltage per cell
+    const maxVoltagePerCell = 4.2;  // Full voltage per cell
+    
+    const minVoltage = cellCount * minVoltagePerCell;
+    const maxVoltage = cellCount * maxVoltagePerCell;
+    
+    // Calculate percentage (0-100)
+    let percentage = ((voltage - minVoltage) / (maxVoltage - minVoltage)) * 100;
+    percentage = Math.max(0, Math.min(100, percentage)); // Clamp between 0-100
+    
+    // Choose color based on percentage
+    let color;
+    if (percentage > 60) {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    } else if (percentage > 30) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else if (percentage > 15) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    }
+    
+    // Apply gradient background to voltage metric
+    const voltageMetricParent = document.querySelector('.metric:has(#voltageMetric)');
+    if (voltageMetricParent) {
+        voltageMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
+}
+
+function updateRPMIndicator(rpm) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxRPM || activeProfile.maxRPM === 0) {
+        const rpmMetricParent = document.querySelector('.metric:has(#rpmMetric)');
+        if (rpmMetricParent) {
+            rpmMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    const maxRPM = activeProfile.maxRPM;
+    let percentage = (rpm / maxRPM) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    
+    let color;
+    if (percentage > 90) {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    } else if (percentage > 70) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else if (percentage > 50) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    }
+    
+    const rpmMetricParent = document.querySelector('.metric:has(#rpmMetric)');
+    if (rpmMetricParent) {
+        rpmMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
+}
+
+function updateThrustIndicator(thrust) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxThrust || activeProfile.maxThrust === 0) {
+        const thrustMetricParent = document.querySelector('.metric:has(#thrustMetric)');
+        if (thrustMetricParent) {
+            thrustMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    // Convert thrust from grams to kg for comparison
+    const thrustKg = thrust / 1000;
+    const maxThrust = activeProfile.maxThrust;
+    let percentage = (thrustKg / maxThrust) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    
+    let color;
+    if (percentage > 90) {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    } else if (percentage > 70) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else if (percentage > 50) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    }
+    
+    const thrustMetricParent = document.querySelector('.metric:has(#thrustMetric)');
+    if (thrustMetricParent) {
+        thrustMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
+}
+
+function updateCurrentIndicator(current) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxCurrent || activeProfile.maxCurrent === 0) {
+        const currentMetricParent = document.querySelector('.metric:has(#currentMetric)');
+        if (currentMetricParent) {
+            currentMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    const maxCurrent = activeProfile.maxCurrent;
+    let percentage = (current / maxCurrent) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    
+    let color;
+    if (percentage > 90) {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    } else if (percentage > 70) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else if (percentage > 50) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    }
+    
+    const currentMetricParent = document.querySelector('.metric:has(#currentMetric)');
+    if (currentMetricParent) {
+        currentMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
+}
+
+function updateESCTempIndicator(temp) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxESCTemp || activeProfile.maxESCTemp === 0) {
+        const escTempMetricParent = document.querySelector('.metric:has(#escTempMetric)');
+        if (escTempMetricParent) {
+            escTempMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    const maxTemp = activeProfile.maxESCTemp;
+    let percentage = (temp / maxTemp) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    
+    let color;
+    if (percentage > 90) {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    } else if (percentage > 70) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else if (percentage > 50) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    }
+    
+    const escTempMetricParent = document.querySelector('.metric:has(#escTempMetric)');
+    if (escTempMetricParent) {
+        escTempMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
+}
+
+function updateMotorTempIndicator(temp) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxMotorTemp || activeProfile.maxMotorTemp === 0) {
+        const motorTempMetricParent = document.querySelector('.metric:has(#motorTempMetric)');
+        if (motorTempMetricParent) {
+            motorTempMetricParent.style.background = '';
+        }
+        return;
+    }
+    
+    const maxTemp = activeProfile.maxMotorTemp;
+    let percentage = (temp / maxTemp) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    
+    let color;
+    if (percentage > 90) {
+        color = 'rgba(250, 60, 79, 0.6)'; // Red with transparency
+    } else if (percentage > 70) {
+        color = 'rgba(252, 114, 64, 0.6)'; // Orange with transparency
+    } else if (percentage > 50) {
+        color = 'rgba(246, 188, 15, 0.6)'; // Yellow with transparency
+    } else {
+        color = 'rgba(57, 238, 99, 0.6)'; // Green with transparency
+    }
+    
+    const motorTempMetricParent = document.querySelector('.metric:has(#motorTempMetric)');
+    if (motorTempMetricParent) {
+        motorTempMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+    }
 }
 
 function handleTelemetry(event) {
@@ -405,13 +604,31 @@ function handleTelemetry(event) {
             const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';
             
             if (hasActiveProfile) {
-                if (msg.voltage !== undefined) voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
-                if (msg.current !== undefined) currentMetric.textContent = `${msg.current.toFixed(2)} A`;
+                if (msg.voltage !== undefined) {
+                    voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
+                    updateBatteryIndicator(msg.voltage);
+                }
+                if (msg.current !== undefined) {
+                    currentMetric.textContent = `${msg.current.toFixed(2)} A`;
+                    updateCurrentIndicator(msg.current);
+                }
                 if (msg.power !== undefined) powerMetric.textContent = `${msg.power.toFixed(2)} W`;
-                if (msg.rpm !== undefined) rpmMetric.textContent = msg.rpm;
-                if (msg.thrust !== undefined) thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
-                if (msg.escTemp !== undefined) escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
-                if (msg.motorTemp !== undefined) motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+                if (msg.rpm !== undefined) {
+                    rpmMetric.textContent = msg.rpm;
+                    updateRPMIndicator(msg.rpm);
+                }
+                if (msg.thrust !== undefined) {
+                    thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
+                    updateThrustIndicator(msg.thrust);
+                }
+                if (msg.escTemp !== undefined) {
+                    escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
+                    updateESCTempIndicator(msg.escTemp);
+                }
+                if (msg.motorTemp !== undefined) {
+                    motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+                    updateMotorTempIndicator(msg.motorTemp);
+                }
             } else {
                 console.log('Telemetry update blocked - no active profile. Current profile name:', activeProfileName);
             }

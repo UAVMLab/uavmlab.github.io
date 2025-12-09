@@ -3,20 +3,58 @@ import { encoder } from './constants.js';
 import { getCommandCharacteristic } from './state.js';
 import { appendLog } from './utils.js';
 
-export async function sendCommand(cmd, additionalData = {}) {
-    const commandCharacteristic = getCommandCharacteristic();
-    if (!commandCharacteristic) {
-        throw new Error('Not connected or command characteristic not available.');
+// Command queue to prevent concurrent GATT operations
+let commandQueue = [];
+let isProcessingQueue = false;
+
+async function processCommandQueue() {
+    if (isProcessingQueue || commandQueue.length === 0) {
+        return;
     }
+    
+    isProcessingQueue = true;
+    
+    while (commandQueue.length > 0) {
+        const { command, resolve, reject } = commandQueue.shift();
+        
+        try {
+            const commandCharacteristic = getCommandCharacteristic();
+            if (!commandCharacteristic) {
+                throw new Error('Not connected or command characteristic not available.');
+            }
+            
+            const jsonString = JSON.stringify(command);
+            appendLog(`TX: ${jsonString}`);
+            const encoded = encoder.encode(jsonString);
+            
+            await commandCharacteristic.writeValue(encoded);
+            
+            // Add delay between commands to prevent GATT conflicts
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            resolve();
+        } catch (error) {
+            reject(error);
+        }
+    }
+    
+    isProcessingQueue = false;
+}
 
-    const command = {
-        cmd,
-        ...additionalData,
-        timestamp: Date.now()
-    };
+export async function sendCommand(cmd, additionalData = {}) {
+    return new Promise((resolve, reject) => {
+        const command = {
+            cmd,
+            ...additionalData,
+            timestamp: Date.now()
+        };
+        
+        commandQueue.push({ command, resolve, reject });
+        processCommandQueue();
+    });
+}
 
-    const jsonString = JSON.stringify(command);
-    appendLog(`TX: ${jsonString}`);
-    const encoded = encoder.encode(jsonString);
-    await commandCharacteristic.writeValue(encoded);
+export function clearCommandQueue() {
+    commandQueue = [];
+    isProcessingQueue = false;
 }
