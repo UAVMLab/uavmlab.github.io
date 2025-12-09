@@ -970,6 +970,22 @@ footer {
     .checkbox-label {
         font-size: 0.85rem;
     }
+
+    /* Profile form inline fields - reduce label width for mobile */
+    label.inline-field > span:first-child {
+        min-width: 140px;
+        font-size: 0.85rem;
+    }
+
+    label.checkbox-label.inline-field > span:first-child {
+        min-width: 140px;
+        font-size: 0.85rem;
+    }
+
+    /* Adjust gap for tighter spacing on mobile */
+    label.inline-field {
+        gap: 0.5rem;
+    }
 }
 
 /* Medium Mobile to Small Tablet */
