@@ -7,6 +7,16 @@ let currentProfile = null;
 let receivedProfiles = [];
 let currentActiveProfileName = null;
 
+// Getter for current active profile name
+export function getCurrentActiveProfileName() {
+    return currentActiveProfileName;
+}
+
+// Reset active profile (called on disconnect)
+export function resetActiveProfile() {
+    currentActiveProfileName = null;
+}
+
 export function initProfilesTab() {
     const loadProfilesButton = document.getElementById('loadProfilesButton');
     const addProfileButton = document.getElementById('addProfileButton');

@@ -36,6 +36,9 @@ export function switchTab(tabName) {
     if (tabName === 'profiles' && typeof window.onProfilesTabOpen === 'function') {
         window.onProfilesTabOpen();
     }
+    if (tabName === 'control' && typeof window.onControlTabOpen === 'function') {
+        window.onControlTabOpen();
+    }
 }
 
 export function toggleInterface(isConnected) {

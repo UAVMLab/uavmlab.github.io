@@ -45,7 +45,7 @@
         <!-- Control Actions card -->
         <section class="card telemetry">
             <h2>Control Actions</h2>
-            <div class="slide-to-arm-wrapper" data-connected-only>
+            <div class="slide-to-arm-wrapper" data-connected-only data-profile-required>
                 <div class="slide-to-arm" id="slideToArm">
                     <div class="slide-track">
                         <span class="slide-text">Slide to ARM >> </span>
@@ -55,19 +55,19 @@
                     </div>
                 </div>
                 <label class="checkbox-label">
-                    <input type="checkbox" id="forceArmCheckbox" disabled data-connected-only>
+                    <input type="checkbox" id="forceArmCheckbox" disabled data-connected-only data-profile-required>
                     <span style="font-size: 0.8rem;">Force</span>
                 </label>
             </div>
 
 
             <div class="button-row">
-                <button id="disarmButton" class="neutral" disabled data-connected-only>Disarm</button>
+                <button id="disarmButton" class="neutral" disabled data-connected-only data-profile-required>Disarm</button>
             </div>
 
             <label class="inline-field" style="gap: 0.5rem;">
                 <span style="min-width: auto; text-align: left;">Throttle:</span>
-                <input type="range" id="throttleSlider" min="48" max="2047" value="48" disabled data-connected-only style="flex: 1;">
+                <input type="range" id="throttleSlider" min="48" max="2047" value="48" disabled data-connected-only data-profile-required style="flex: 1;">
                 <span id="throttleValue" style="min-width: 45px; text-align: right;">0.00</span>
                 <span>%</span>
             </label>

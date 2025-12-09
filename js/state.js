@@ -10,6 +10,7 @@ export const state = {
         thermal: []
     },
     connected: false,
+    hasActiveProfile: false, // Whether device has an active profile set
     // Last received data from device
     lastRxData: null,      // Last 'data' type message
     lastRxStatus: null,    // Last 'status' type message

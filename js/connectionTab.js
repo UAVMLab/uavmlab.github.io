@@ -3,6 +3,81 @@ import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUI
 import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from './state.js';
 import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
 import { sendCommand } from './bluetooth.js';
+import { getCurrentActiveProfileName } from './profilesTab.js';
+import { resetActiveProfile } from './profilesTab.js';
+import { checkMotorStatus } from './controlTab.js';
+
+export function updateControlsAvailability() {
+    const controlElements = document.querySelectorAll('[data-profile-required]');
+    const controlStatus = document.getElementById('controlStatus');
+    const telemetryCard = document.querySelector('.card.telemetry');
+    
+    const activeProfileName = getCurrentActiveProfileName();
+    const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';
+    
+    console.log('updateControlsAvailability called, connected:', state.connected, 'activeProfileName:', activeProfileName, 'hasActiveProfile:', hasActiveProfile);
+    
+    // Check connection status first
+    if (!state.connected) {
+        // Device not connected - disable all controls
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = true;
+            } else {
+                el.classList.add('disabled');
+                el.style.pointerEvents = 'none';
+                el.style.opacity = '0.5';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = 'Connect to device to enable controls.';
+            controlStatus.style.color = '#6c757d';
+        }
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '0.5';
+        }
+    } else if (!hasActiveProfile) {
+        // Connected but no profile set
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = true;
+            } else {
+                // For DIV elements like slide-to-arm, add disabled class and prevent interaction
+                el.classList.add('disabled');
+                el.style.pointerEvents = 'none';
+                el.style.opacity = '0.5';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = '⚠️ No active profile set. Please select a profile from the Profiles tab.';
+            controlStatus.style.color = '#f39c12';
+        }
+        // Dim telemetry card to indicate it's not active
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '0.5';
+        }
+    } else {
+        // Connected and profile is set - enable controls
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = false;
+            } else {
+                // For DIV elements, remove disabled state
+                el.classList.remove('disabled');
+                el.style.pointerEvents = '';
+                el.style.opacity = '';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = 'Ready to control motor.';
+            controlStatus.style.color = '';
+        }
+        // Restore telemetry card opacity
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '1';
+        }
+    }
+}
 
 export function initConnectionTab() {
     const connectButton = document.getElementById('connectButton');
@@ -120,6 +195,7 @@ async function connectDevice() {
         vibratePattern([50, 50, 100]); // Success pattern
         appendLog('Connection established successfully!');
         renderDeviceList();
+        updateControlsAvailability(); // Disable controls until profile is set
         
         // Request firmware version after a delay to allow device to be ready
         setTimeout(async () => {
@@ -268,12 +344,14 @@ function onDisconnected() {
     if (disconnectButton) disconnectButton.disabled = true;
     
     state.connectedDeviceId = null;
+    resetActiveProfile(); // Clear active profile on disconnect
     appendLog('Device disconnected.');
     renderDeviceList();
     setBleDevice(null);
     setGattServer(null);
     setCommandCharacteristic(null);
     setTelemetryCharacteristic(null);
+    updateControlsAvailability();
 }
 
 function handleTelemetry(event) {
@@ -298,13 +376,21 @@ function handleTelemetry(event) {
             // Store in global state
             state.lastRxData = msg;
             
-            if (msg.voltage !== undefined) voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
-            if (msg.current !== undefined) currentMetric.textContent = `${msg.current.toFixed(2)} A`;
-            if (msg.power !== undefined) powerMetric.textContent = `${msg.power.toFixed(2)} W`;
-            if (msg.rpm !== undefined) rpmMetric.textContent = msg.rpm;
-            if (msg.thrust !== undefined) thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
-            if (msg.escTemp !== undefined) escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
-            if (msg.motorTemp !== undefined) motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+            // Only update telemetry if profile is active
+            const activeProfileName = getCurrentActiveProfileName();
+            const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';
+            
+            if (hasActiveProfile) {
+                if (msg.voltage !== undefined) voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
+                if (msg.current !== undefined) currentMetric.textContent = `${msg.current.toFixed(2)} A`;
+                if (msg.power !== undefined) powerMetric.textContent = `${msg.power.toFixed(2)} W`;
+                if (msg.rpm !== undefined) rpmMetric.textContent = msg.rpm;
+                if (msg.thrust !== undefined) thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
+                if (msg.escTemp !== undefined) escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
+                if (msg.motorTemp !== undefined) motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+            } else {
+                console.log('Telemetry update blocked - no active profile. Current profile name:', activeProfileName);
+            }
             
             // Update status indicators
             if (msg.status !== undefined) updateStatusIndicators(msg.status);
@@ -350,6 +436,9 @@ function handleTelemetry(event) {
             console.log('Received cur_profile message:', msg);
             if (msg.name !== undefined && typeof window.handleCurrentProfileMessage === 'function') {
                 window.handleCurrentProfileMessage(msg.name);
+                // Update controls based on profile status
+                console.log('Profile set to:', msg.name);
+                updateControlsAvailability();
             }
         }
         // Handle legacy format with payload
@@ -458,4 +547,7 @@ function updateStatusIndicators(status) {
     updateDot('status-warn-rpm', status & STATUS_BITS.WARN_OVER_RPM, true);
     updateDot('status-warn-stall', status & STATUS_BITS.WARN_MOTOR_STALL, true);
     updateDot('status-warn-cfg', status & STATUS_BITS.WARN_FULL_USR_CFG_PRFLS, true);
+    
+    // Check motor status for auto-disarm
+    checkMotorStatus(status);
 }

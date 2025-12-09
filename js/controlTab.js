@@ -1,12 +1,22 @@
 // Control tab module
 import { sendCommand } from './bluetooth.js';
 import { appendLog, vibrate, vibratePattern } from './utils.js';
+import { updateControlsAvailability } from './connectionTab.js';
 
 // Throttle state for slider
 let throttleSendTimeout = null;
 let lastThrottleValue = null;
 let isThrottleSending = false;
 let lastHapticValue = null;
+
+// Auto-disarm timeout - triggers if armed but not spinning
+let autoDisarmTimeout = null;
+let autoDisarmInProgress = false;
+
+function onControlTabOpen() {
+    // Update control availability when tab is opened
+    updateControlsAvailability();
+}
 
 // Slide to arm state
 let isDragging = false;
@@ -25,6 +35,9 @@ export function initControlTab() {
     const testModeSelect = document.getElementById('testMode');
     const runTestButton = document.getElementById('runTestButton');
     const stopTestButton = document.getElementById('stopTestButton');
+
+    // Set up callback for when control tab is opened
+    window.onControlTabOpen = onControlTabOpen;
 
     // Slide to arm event listeners
     if (slideButton) {
@@ -185,6 +198,54 @@ async function handleArm() {
         vibratePattern([200]); // Long vibration for error
         setControlStatus(`Arm failed: ${error.message}`, false);
         resetSlideToArm();
+    }
+}
+
+// Export function to check motor status and trigger auto-disarm if needed
+export function checkMotorStatus(status) {
+    const STATUS_BITS = {
+        MOTOR_ARMED: 1 << 8,
+        MOTOR_SPINNING: 1 << 9
+    };
+    
+    const isMotorArmed = (status & STATUS_BITS.MOTOR_ARMED) !== 0;
+    const isMotorSpinning = (status & STATUS_BITS.MOTOR_SPINNING) !== 0;
+    
+    console.log('checkMotorStatus - Armed:', isMotorArmed, 'Spinning:', isMotorSpinning, 'Status:', status);
+    
+    // If motor is armed but not spinning, start auto-disarm countdown
+    if (isMotorArmed && !isMotorSpinning) {
+        if (!autoDisarmTimeout && !autoDisarmInProgress) {
+            console.log('Auto-disarm: Motor armed but not spinning, starting 2s countdown...');
+            autoDisarmTimeout = setTimeout(() => {
+                // Double-check status still shows armed but not spinning
+                const motorArmedDot = document.getElementById('status-armed');
+                const motorSpinningDot = document.getElementById('status-spinning');
+                
+                const stillArmed = motorArmedDot?.classList.contains('active');
+                const stillNotSpinning = !motorSpinningDot?.classList.contains('active');
+                
+                console.log('Auto-disarm check after 2s - stillArmed:', stillArmed, 'stillNotSpinning:', stillNotSpinning);
+                
+                if (stillArmed && stillNotSpinning) {
+                    appendLog('Auto-disarm: Motor armed but not spinning for 2 seconds.');
+                    vibratePattern([100, 50, 100]); // Warning pattern
+                    autoDisarmInProgress = true;
+                    handleDisarm().finally(() => {
+                        autoDisarmInProgress = false;
+                    });
+                }
+                
+                autoDisarmTimeout = null;
+            }, 2000);
+        }
+    } else {
+        // Motor is either not armed or is spinning - cancel auto-disarm
+        if (autoDisarmTimeout) {
+            console.log('Auto-disarm cancelled - Armed:', isMotorArmed, 'Spinning:', isMotorSpinning);
+            clearTimeout(autoDisarmTimeout);
+            autoDisarmTimeout = null;
+        }
     }
 }
 
