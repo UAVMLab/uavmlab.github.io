@@ -23,6 +23,7 @@ let isDragging = false;
 let startX = 0;
 let currentX = 0;
 let isArmed = false;
+let lastVibrateProgress = 0; // Track progress for continuous vibration
 
 export function initControlTab() {
     const slideToArm = document.getElementById('slideToArm');
@@ -120,6 +121,7 @@ function handleSlideStart(event) {
     event.preventDefault();
     isDragging = true;
     startX = event.type.includes('mouse') ? event.clientX : event.touches[0].clientX;
+    lastVibrateProgress = 0;
     vibrate(25);
 }
 
@@ -138,12 +140,20 @@ function handleSlideMove(event) {
     currentX = Math.max(0, Math.min(deltaX, maxSlide));
     slideButton.style.transform = `translateX(${currentX}px) translateY(-50%)`;
     
-    // Haptic feedback at milestones
+    // Continuous haptic feedback that increases with progress
     const progress = currentX / maxSlide;
-    if (progress > 0.5 && progress < 0.52) {
-        vibrate(25);
-    } else if (progress > 0.75 && progress < 0.77) {
-        vibrate(30);
+    
+    // Vibrate every 5% of progress with increasing intensity
+    const progressStep = Math.floor(progress * 20); // 0-19 (for 5% steps)
+    if (progressStep > lastVibrateProgress && progress > 0) {
+        lastVibrateProgress = progressStep;
+        
+        // Calculate vibration duration: starts at 15ms, increases to 60ms at 85%
+        const minDuration = 15;
+        const maxDuration = 60;
+        const duration = Math.round(minDuration + (maxDuration - minDuration) * (progress / 0.85));
+        
+        vibrate(Math.min(duration, maxDuration));
     }
 }
 
@@ -161,12 +171,13 @@ function handleSlideEnd(event) {
     // If slid more than 85%, trigger arm
     if (progress > 0.85) {
         slideButton.style.transform = `translateX(${maxSlide}px) translateY(-50%)`;
-        vibratePattern([1000, 50, 100]);
+        vibratePattern([500, 100, 500]); // Very strong warning vibration
         handleArm();
     } else {
         // Reset position with animation
         slideButton.style.transition = 'transform 0.3s ease-out';
         slideButton.style.transform = 'translateX(0) translateY(-50%)';
+        lastVibrateProgress = 0;
         vibrate(30);
         setTimeout(() => {
             slideButton.style.transition = '';
