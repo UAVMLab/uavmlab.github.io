@@ -444,7 +444,7 @@ function handleTelemetry(event) {
         // Handle version messages
         else if (msg.type === 'version') {
             if (msg.firmware !== undefined) {
-                firmwareVersion.textContent = msg.firmware;
+                firmwareVersion.textContent = `${msg.firmware}v`;
                 appendLog(`Firmware version: ${msg.firmware}`);
             }
         }
@@ -486,7 +486,7 @@ function handleTelemetry(event) {
         }
         // Handle device info
         else if (msg.type === 'DEVICE_INFO' && msg.payload) {
-            firmwareVersion.textContent = msg.payload.firmware || '0.0.1v';
+            firmwareVersion.textContent = msg.payload.firmware ? `v${msg.payload.firmware}` : 'v0.0.1';
             batteryLevel.textContent = msg.payload.battery || '--';
             temperature.textContent = msg.payload.temperature || '--';
             
