@@ -10,7 +10,7 @@ import { checkMotorStatus } from './controlTab.js';
 export function updateControlsAvailability() {
     const controlElements = document.querySelectorAll('[data-profile-required]');
     const controlStatus = document.getElementById('controlStatus');
-    const telemetryCard = document.querySelector('.card.telemetry');
+    const telemetryCard = document.querySelector('.card');
     
     const activeProfileName = getCurrentActiveProfileName();
     const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';

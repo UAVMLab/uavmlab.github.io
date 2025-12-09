@@ -145,186 +145,172 @@ html {
     background: #161b22;
     border: 1px solid #30363d;
     border-radius: 8px;
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}
-
-.card.telemetry {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: #161b22;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
 }
 
-.card.telemetry h2 {
+.card h2 {
     font-size: 0.85rem;
     margin: 0 0 0.4rem 0;
     font-weight: 600;
 }
 
-.card.telemetry .metrics-grid {
+.card .metrics-grid {
     gap: 0.3rem;
 }
 
-.card.telemetry .metric-row {
+.card .metric-row {
     gap: 0.3rem;
 }
 
-.card.telemetry .metric {
+.card .metric {
     padding: 0.25rem 0.4rem;
     border-radius: 4px;
 }
 
-.card.telemetry .metric h3 {
+.card .metric h3 {
     font-size: 0.65rem;
     margin: 0;
 }
 
-.card.telemetry .metric-icon {
+.card .metric-icon {
     font-size: 0.9rem;
 }
 
-.card.telemetry .metric p {
+.card .metric p {
     margin: 0.1rem 0 0;
     font-size: 0.85rem;
     font-weight: 600;
 }
 
-/* Connection Status card compact styling */
-#tab-connection .card.telemetry h2 {
+/* Connection tab cards styling */
+#tab-connection .card h2 {
     font-size: 0.85rem;
     margin: 0 0 0.4rem 0;
     font-weight: 600;
 }
 
-#tab-connection .card.telemetry .button-row {
+#tab-connection .card .button-row {
     margin-bottom: 0.4rem;
 }
 
-#tab-connection .card.telemetry button {
+#tab-connection .card button {
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
 }
 
-#tab-connection .card.telemetry #status {
+#tab-connection .card #status {
     margin-top: 0.4rem;
     border-top: 1px solid #30363d;
     padding-top: 0.4rem;
 }
 
-#tab-connection .card.telemetry #status p {
+#tab-connection .card #status p {
     margin: 0.2rem 0;
     font-size: 0.75rem;
     line-height: 1.4;
 }
 
-#tab-connection .card.telemetry #statusText {
+#tab-connection .card #statusText {
     font-size: 0.75rem;
 }
 
-#tab-connection .card.telemetry #deviceName {
+#tab-connection .card #deviceName {
     font-size: 0.75rem;
 }
 
-#tab-connection .card.telemetry #connectionStrength {
+#tab-connection .card #connectionStrength {
     font-size: 0.75rem;
 }
 
-#tab-connection .card.telemetry .subtext {
+#tab-connection .card .subtext {
     font-size: 0.7rem;
     margin: 0.2rem 0 0.4rem 0;
     color: #8b949e;
 }
 
-#tab-connection .card.telemetry ul {
+#tab-connection .card ul {
     margin: 0.3rem 0 0 0;
 }
 
-#tab-connection .card.telemetry ul li {
+#tab-connection .card ul li {
     margin-bottom: 0.25rem;
     font-size: 0.75rem;
 }
 
-#tab-connection .card.telemetry .device-list li {
+#tab-connection .card .device-list li {
     padding: 0.4rem;
     font-size: 0.75rem;
 }
 
-/* Control tab Status card compact styling */
-#tab-control .card.telemetry #controlStatus {
+/* Control tab Status card styling */
+#tab-control .card #controlStatus {
     margin: 0.2rem 0 0 0;
     font-size: 0.75rem;
     line-height: 1.4;
 }
 
-/* Profiles tab cards compact styling */
-#tab-profiles .card.telemetry .subtext {
+/* Profiles tab cards styling */
+#tab-profiles .card .subtext {
     font-size: 0.7rem;
     margin: 0.2rem 0 0.4rem 0;
     color: #8b949e;
 }
 
-#tab-profiles .card.telemetry .empty {
+#tab-profiles .card .empty {
     font-size: 0.75rem;
     color: #8b949e;
     margin: 0.3rem 0;
 }
 
-#tab-profiles .card.telemetry .button-row {
+#tab-profiles .card .button-row {
     margin-bottom: 0.4rem;
 }
 
-#tab-profiles .card.telemetry button {
+#tab-profiles .card button {
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
 }
 
-#tab-profiles .card.telemetry .profile-list {
+#tab-profiles .card .profile-list {
     margin: 0.4rem 0;
 }
 
-#tab-profiles .card.telemetry .profile-list-item {
+#tab-profiles .card .profile-list-item {
     padding: 0.4rem;
 }
 
-/* Results tab cards compact styling */
-#tab-results .card.telemetry .subtext {
+/* Results tab cards styling */
+#tab-results .card .subtext {
     font-size: 0.7rem;
     margin: 0.4rem 0 0 0;
     color: #8b949e;
 }
 
-#tab-results .card.telemetry figure {
+#tab-results .card figure {
     padding: 0.4rem;
 }
 
-#tab-results .card.telemetry figcaption {
+#tab-results .card figcaption {
     font-size: 0.75rem;
     margin-bottom: 0.3rem;
 }
 
-/* Logs tab card compact styling */
-#tab-logs .card.telemetry .log-filters {
+/* Logs tab card styling */
+#tab-logs .card .log-filters {
     margin-bottom: 0.4rem;
 }
 
-#tab-logs .card.telemetry .checkbox-label {
+#tab-logs .card .checkbox-label {
     font-size: 0.75rem;
 }
 
-#tab-logs .card.telemetry #logOutput {
+#tab-logs .card #logOutput {
     font-size: 0.7rem;
     padding: 0.4rem;
-}
-
-
-.card h2 {
-    margin-top: 0;
-    margin-bottom: 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 600;
 }
 
 #status {
