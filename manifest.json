@@ -7,6 +7,27 @@
   "background_color": "#0d1117",
   "theme_color": "#0b5cff",
   "orientation": "portrait-primary",
+  "categories": ["utilities", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Connect Device",
+      "short_name": "Connect",
+      "url": "/?tab=connection",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Motor Control",
+      "short_name": "Control",
+      "url": "/?tab=control",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "View Results",
+      "short_name": "Results",
+      "url": "/?tab=results",
+      "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.svg",
