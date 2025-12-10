@@ -47,7 +47,7 @@ header p {
 main {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 1rem clamp(0.75rem, 3vw, 1.5rem) 5rem; /* Responsive horizontal padding */
+    padding: 1rem clamp(0.75rem, 3vw, 1.5rem) 15rem; /* Extra bottom padding for status bar + disarm button */
     min-height: calc(100vh - 180px); /* Ensure content fills viewport */
 }
 
@@ -924,7 +924,8 @@ figcaption {
 
 footer {
     text-align: center;
-    padding: 1rem 1rem calc(5rem + env(safe-area-inset-bottom));
+    padding: 1rem;
+    margin-bottom: calc(9rem + env(safe-area-inset-bottom));
     color: rgba(255, 255, 255, 0.6);
 }
 
