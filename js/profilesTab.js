@@ -6,6 +6,7 @@ import { appendLog, vibrate, vibratePattern } from './utils.js';
 let currentProfile = null;
 let receivedProfiles = [];
 let currentActiveProfileName = null;
+let hasReceivedCurrentProfile = false; // Track if we've received the current profile
 
 // Getter for current active profile name
 export function getCurrentActiveProfileName() {
@@ -21,6 +22,12 @@ export function getCurrentActiveProfile() {
 // Reset active profile (called on disconnect)
 export function resetActiveProfile() {
     currentActiveProfileName = null;
+    hasReceivedCurrentProfile = false;
+}
+
+// Mark that current profile needs to be requested again
+export function invalidateCurrentProfile() {
+    hasReceivedCurrentProfile = false;
 }
 
 export function initProfilesTab() {
@@ -62,21 +69,22 @@ async function loadProfilesFromDevice() {
     try {
         // Clear previous profiles
         receivedProfiles = [];
-        currentActiveProfileName = null;
         renderProfileList();
         
         await sendCommand('get_profile_list');
         appendLog('Requesting profile list from device...');
         
-        // Request current active profile after a delay to allow profiles to load
-        setTimeout(async () => {
-            try {
-                await sendCommand('get_cur_profile');
-                appendLog('Requesting current active profile...');
-            } catch (error) {
-                appendLog(`Failed to request current profile: ${error.message}`);
-            }
-        }, 2000);
+        // Only request current active profile if we haven't received it yet
+        if (!hasReceivedCurrentProfile) {
+            setTimeout(async () => {
+                try {
+                    await sendCommand('get_cur_profile');
+                    appendLog('Requesting current active profile...');
+                } catch (error) {
+                    appendLog(`Failed to request current profile: ${error.message}`);
+                }
+            }, 2000);
+        }
     } catch (error) {
         appendLog(`Failed to load profiles: ${error.message}`);
     }
@@ -124,6 +132,7 @@ export function handleProfileMessage(profile) {
 
 export function handleCurrentProfileMessage(profileName) {
     currentActiveProfileName = profileName;
+    hasReceivedCurrentProfile = true; // Mark as received
     console.log('Current active profile set to:', `"${currentActiveProfileName}"`);
     console.log('Available profiles:', receivedProfiles.map(p => `"${p.profileName}"`));
     appendLog(`Current active profile: "${profileName}"`);
@@ -287,6 +296,9 @@ async function saveProfile(e) {
         vibratePattern([80, 40, 80]); // Success pattern for save
         appendLog(`Profile "${profileData.name}" ${isNewOrRenamed ? 'create' : 'save'} requested.`);
         
+        // Mark that we need to refresh current profile info
+        invalidateCurrentProfile();
+        
         // Update current profile name
         currentProfile.profileName = enteredName;
         
@@ -318,6 +330,9 @@ async function setActiveProfile() {
         vibratePattern([50, 30, 80]); // Success pattern for set active
         appendLog(`Set profile "${currentProfile.profileName}" as active.`);
         
+        // Mark that we need to refresh current profile info
+        invalidateCurrentProfile();
+        
         // Refresh the profile list to update the current active profile highlighting
         setTimeout(() => {
             loadProfilesFromDevice();
@@ -340,6 +355,9 @@ async function removeProfile() {
         await sendCommand('delete_profile', { value: currentProfile.profileName });
         vibratePattern([100, 50, 100]); // Warning pattern for delete
         appendLog(`Profile "${currentProfile.profileName}" removal requested.`);
+        
+        // Mark that we need to refresh current profile info
+        invalidateCurrentProfile();
         
         // Hide details card and clear current profile
         document.getElementById('profileDetailsCard').style.display = 'none';
