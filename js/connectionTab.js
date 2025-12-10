@@ -4,8 +4,8 @@ import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTeleme
 import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
 import { sendCommand, clearCommandQueue } from './bluetooth.js';
 import { getCurrentActiveProfileName, getCurrentActiveProfile } from './profilesTab.js';
-import { resetActiveProfile } from './profilesTab.js';
-import { checkMotorStatus } from './controlTab.js';
+import { resetActiveProfile, resetProfilesTabUI } from './profilesTab.js';
+import { checkMotorStatus, resetControlTabUI } from './controlTab.js';
 
 export function updateControlsAvailability() {
     const controlElements = document.querySelectorAll('[data-profile-required]');
@@ -376,6 +376,11 @@ function onDisconnected() {
     setGattServer(null);
     setCommandCharacteristic(null);
     setTelemetryCharacteristic(null);
+    
+    // Reset UI for control and profiles tabs
+    resetControlTabUI();
+    resetProfilesTabUI();
+    
     updateControlsAvailability();
 }
 

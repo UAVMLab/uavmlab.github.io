@@ -417,3 +417,25 @@ function addNewProfile() {
 export function updateProfileList() {
     renderProfileList();
 }
+
+// Export function to reset profiles tab UI on disconnect
+export function resetProfilesTabUI() {
+    // Clear profile list
+    receivedProfiles = [];
+    currentProfile = null;
+    
+    // Re-render empty list
+    renderProfileList();
+    
+    // Hide profile details card
+    const profileDetailsCard = document.getElementById('profileDetailsCard');
+    if (profileDetailsCard) {
+        profileDetailsCard.style.display = 'none';
+    }
+    
+    // Uncheck modify checkbox
+    const modifyCheckbox = document.getElementById('modifyProfileCheckbox');
+    if (modifyCheckbox) {
+        modifyCheckbox.checked = false;
+    }
+}

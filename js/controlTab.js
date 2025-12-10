@@ -330,6 +330,56 @@ function resetSlideToArm() {
     if (slideText) slideText.textContent = 'Slide to ARM >> ';
 }
 
+// Export function to reset control tab UI on disconnect
+export function resetControlTabUI() {
+    // Reset slide to arm
+    resetSlideToArm();
+    
+    // Reset throttle slider
+    const throttleSlider = document.getElementById('throttleSlider');
+    const throttleValue = document.getElementById('throttleValue');
+    if (throttleSlider) throttleSlider.value = 48;
+    if (throttleValue) throttleValue.textContent = '0.00';
+    
+    // Clear any pending throttle timeout
+    if (throttleSendTimeout) {
+        clearTimeout(throttleSendTimeout);
+        throttleSendTimeout = null;
+    }
+    
+    // Reset throttle state
+    lastThrottleValue = null;
+    lastHapticValue = null;
+    
+    // Clear auto-disarm timeout
+    if (autoDisarmTimeout) {
+        clearTimeout(autoDisarmTimeout);
+        autoDisarmTimeout = null;
+    }
+    autoDisarmInProgress = false;
+    
+    // Reset telemetry values
+    const telemetryMetrics = [
+        'voltageMetric', 'currentMetric', 'powerMetric',
+        'rpmMetric', 'thrustMetric', 'escTempMetric', 'motorTempMetric'
+    ];
+    telemetryMetrics.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '--';
+    });
+    
+    // Clear control status
+    const controlStatus = document.getElementById('controlStatus');
+    if (controlStatus) {
+        controlStatus.textContent = '';
+        controlStatus.style.color = '';
+    }
+    
+    // Uncheck force arm
+    const forceArmCheckbox = document.getElementById('forceArmCheckbox');
+    if (forceArmCheckbox) forceArmCheckbox.checked = false;
+}
+
 function handleForceArmChange(event) {
     if (event.target.checked) {
         vibratePattern([150, 70, 150]); // Warning pattern
