@@ -2,7 +2,8 @@
   "name": "UAV Motor Lab",
   "short_name": "Motor Lab",
   "description": "Wireless UAV motor testing via Web Bluetooth",
-  "start_url": "/",
+  "start_url": "/UAVMLab.github.io/",
+  "scope": "/UAVMLab.github.io/",
   "display": "standalone",
   "background_color": "#0d1117",
   "theme_color": "#0b5cff",
@@ -12,19 +13,19 @@
     {
       "name": "Connect Device",
       "short_name": "Connect",
-      "url": "/?tab=connection",
+      "url": "/UAVMLab.github.io/?tab=connection",
       "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
     },
     {
       "name": "Motor Control",
       "short_name": "Control",
-      "url": "/?tab=control",
+      "url": "/UAVMLab.github.io/?tab=control",
       "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
     },
     {
       "name": "View Results",
       "short_name": "Results",
-      "url": "/?tab=results",
+      "url": "/UAVMLab.github.io/?tab=results",
       "icons": [{ "src": "icons/icon-192.svg", "sizes": "192x192" }]
     }
   ],
