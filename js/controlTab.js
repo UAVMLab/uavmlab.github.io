@@ -25,6 +25,10 @@ let currentX = 0;
 let isArmed = false;
 let lastVibrateProgress = 0; // Track progress for continuous vibration
 
+// Fixed disarm button
+let fixedDisarmButton = null;
+let fixedDisarmContainer = null;
+
 export function initControlTab() {
     const slideToArm = document.getElementById('slideToArm');
     const slideButton = document.getElementById('slideButton');
@@ -61,12 +65,21 @@ export function initControlTab() {
     if (runTestButton) runTestButton.addEventListener('click', handleRunTest);
     if (stopTestButton) stopTestButton.addEventListener('click', handleStopTest);
     
-    // Status dot touch/click handlers
-    initStatusDotHandlers();
+    // Initialize fixed disarm button
+    fixedDisarmButton = document.getElementById('fixedDisarmButton');
+    fixedDisarmContainer = document.getElementById('fixed-disarm-container');
+    if (fixedDisarmButton) {
+        fixedDisarmButton.addEventListener('click', handleDisarm);
+    }
 }
 
-function initStatusDotHandlers() {
+export function initStatusDotHandlers() {
     const statusDots = document.querySelectorAll('.status-dot');
+    const fixedStatusBar = document.getElementById('fixed-status-indicators');
+    
+    console.log('Status dots found:', statusDots.length);
+    console.log('Fixed status bar:', fixedStatusBar);
+    
     let activeLabel = null;
     
     statusDots.forEach(dot => {
@@ -83,9 +96,11 @@ function initStatusDotHandlers() {
             if (dot.classList.contains('show-label')) {
                 dot.classList.remove('show-label');
                 activeLabel = null;
+                if (fixedStatusBar) fixedStatusBar.classList.remove('expanded');
             } else {
                 dot.classList.add('show-label');
                 activeLabel = dot;
+                if (fixedStatusBar) fixedStatusBar.classList.add('expanded');
                 vibrate(25);
                 
                 // Auto-hide after 2 seconds
@@ -93,6 +108,7 @@ function initStatusDotHandlers() {
                     if (activeLabel === dot) {
                         dot.classList.remove('show-label');
                         activeLabel = null;
+                        if (fixedStatusBar) fixedStatusBar.classList.remove('expanded');
                     }
                 }, 2000);
             }
@@ -103,6 +119,18 @@ function initStatusDotHandlers() {
             e.preventDefault();
             vibrate(25);
         });
+        
+        // Hover events for desktop
+        dot.addEventListener('mouseenter', () => {
+            if (fixedStatusBar) fixedStatusBar.classList.add('expanded');
+        });
+        
+        dot.addEventListener('mouseleave', () => {
+            // Only remove expanded if no label is actively shown
+            if (!activeLabel) {
+                if (fixedStatusBar) fixedStatusBar.classList.remove('expanded');
+            }
+        });
     });
     
     // Close label when clicking elsewhere
@@ -110,6 +138,7 @@ function initStatusDotHandlers() {
         if (activeLabel && !e.target.classList.contains('status-dot')) {
             activeLabel.classList.remove('show-label');
             activeLabel = null;
+            if (fixedStatusBar) fixedStatusBar.classList.remove('expanded');
         }
     });
 }
@@ -201,6 +230,11 @@ async function handleArm() {
         vibratePattern([100, 50, 150]); // Success pattern
         setControlStatus(`Motor ${isForceArm ? 'force ' : ''}armed.`);
         
+        // Show fixed disarm button
+        if (fixedDisarmContainer) {
+            fixedDisarmContainer.style.display = 'flex';
+        }
+        
         // Update UI
         if (slideButton) slideButton.classList.add('armed');
         if (slideToArm) slideToArm.classList.add('armed');
@@ -278,6 +312,11 @@ function resetSlideToArm() {
     const slideButton = document.getElementById('slideButton');
     const slideToArm = document.getElementById('slideToArm');
     const slideText = document.querySelector('.slide-text');
+    
+    // Hide fixed disarm button
+    if (fixedDisarmContainer) {
+        fixedDisarmContainer.style.display = 'none';
+    }
     
     if (slideButton) {
         slideButton.classList.remove('armed');

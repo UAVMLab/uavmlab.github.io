@@ -1,5 +1,5 @@
 // HTML Component Loader
-export async function loadComponent(componentPath, targetSelector) {
+export async function loadComponent(componentPath, targetSelector, append = false) {
     try {
         const response = await fetch(componentPath);
         if (!response.ok) {
@@ -8,7 +8,11 @@ export async function loadComponent(componentPath, targetSelector) {
         const html = await response.text();
         const target = document.querySelector(targetSelector);
         if (target) {
-            target.innerHTML = html;
+            if (append) {
+                target.insertAdjacentHTML('beforeend', html);
+            } else {
+                target.innerHTML = html;
+            }
         } else {
             console.error(`Target selector not found: ${targetSelector}`);
         }
@@ -27,6 +31,7 @@ export async function loadComponents() {
         loadComponent('components/tab-control.html', '#tab-control-container'),
         loadComponent('components/tab-results.html', '#tab-results-container'),
         loadComponent('components/tab-logs.html', '#tab-logs-container'),
+        loadComponent('components/status-indicators.html', '.status-bar-content', true), // Append to status-bar-content
         loadComponent('components/bottom-nav.html', '#bottom-nav-container'),
         loadComponent('components/footer.html', '#footer-container')
     ]);

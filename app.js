@@ -4,7 +4,7 @@ import { setStatus } from './js/utils.js';
 import { initNavigation } from './js/navigation.js';
 import { initConnectionTab } from './js/connectionTab.js';
 import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage } from './js/profilesTab.js';
-import { initControlTab } from './js/controlTab.js';
+import { initControlTab, initStatusDotHandlers } from './js/controlTab.js';
 import { initResultsTab } from './js/resultsTab.js';
 import { initLogsTab } from './js/logsTab.js';
 
@@ -27,6 +27,11 @@ async function initApp() {
     initControlTab();
     initResultsTab();
     initLogsTab();
+    
+    console.log('About to initialize status dot handlers...');
+    // Initialize status dot handlers (after components are loaded)
+    initStatusDotHandlers();
+    console.log('Status dot handlers initialized');
     
     // Check Web Bluetooth support
     if (navigator.bluetooth) {
