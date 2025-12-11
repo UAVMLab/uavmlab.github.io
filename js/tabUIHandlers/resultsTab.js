@@ -1,5 +1,5 @@
 // Results tab module
-import { state } from './state.js';
+import { state } from '../state.js';
 
 export function initResultsTab() {
     // Initialize charts

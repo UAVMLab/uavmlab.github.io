@@ -1,5 +1,6 @@
 // Navigation bar module
-import { switchTab, vibrate } from './utils.js';
+import { vibrate } from './utils/haptics.js';
+import { switchTab } from './utils/uiUtils.js';
 
 export function initNavigation() {
     const tabButtons = document.querySelectorAll('.tab-button');

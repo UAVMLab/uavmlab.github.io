@@ -1,7 +1,12 @@
 // Control tab module
-import { sendCommand } from './bluetooth.js';
-import { appendLog, vibrate, vibratePattern } from './utils.js';
+import { sendCommand } from '../utils/bluetooth.js';
+import { vibrate, vibratePattern } from '../utils/haptics.js';
+import { appendLog } from '../utils/logUtils.js';
+
 import { updateControlsAvailability } from './connectionTab.js';
+
+// ==================================================================================== //
+
 
 // Throttle state for slider
 let throttleSendTimeout = null;
@@ -30,6 +35,7 @@ let fixedDisarmButton = null;
 let fixedDisarmContainer = null;
 
 export function initControlTab() {
+    // (Reverted) No disabling logic for Control Actions card
     const slideToArm = document.getElementById('slideToArm');
     const slideButton = document.getElementById('slideButton');
     const disarmButton = document.getElementById('disarmButton');

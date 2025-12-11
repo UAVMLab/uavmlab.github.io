@@ -1,3 +1,16 @@
+/* Only block pointer events for Analize and Telemetry cards, not Control Actions card */
+.disabled-card {
+    opacity: 0.5;
+    filter: grayscale(0.7);
+    position: relative;
+}
+/* Disabled card overlay for Analize tab */
+/* Only block pointer events for cards with data-block-interaction */
+.disabled-card {
+    opacity: 0.5;
+    filter: grayscale(0.7);
+    position: relative;
+}
 * {
     box-sizing: border-box;
 }
@@ -126,13 +139,13 @@ html {
 }
 
 .tab-panel {
-    display: none;
+    display: none !important;
     padding: 1.5rem;
     overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 .tab-panel.active {
-    display: block;
+    display: block !important;
 }
 
 .panel-grid {
@@ -181,6 +194,79 @@ html {
     margin: 0.1rem 0 0;
     font-size: 0.85rem;
     font-weight: 600;
+}
+
+/* Parameters grid styling */
+#analize-params-card .params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.4rem;
+}
+
+#analize-params-card .param-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#analize-params-card .param-field label {
+    font-size: 0.75rem;
+    min-width: 130px;
+}
+
+#analize-params-card .param-field input,
+#analize-params-card .param-field select {
+    font-size: 0.75rem;
+    padding: 0.35rem;
+    flex: 1;
+}
+
+/* Analyze params grid styling */
+.params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.param-field {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.param-field label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #f0f6fc;
+    min-width: 140px;
+    flex-shrink: 0;
+}
+
+.param-field input,
+.param-field select {
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #f0f6fc;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    flex: 1;
+}
+
+.param-field input:focus,
+.param-field select:focus {
+    outline: none;
+    border-color: #149eca;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.param-field input:disabled,
+.param-field select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Make Live Telemetry card sticky */
@@ -266,6 +352,13 @@ html {
     line-height: 1.4;
 }
 
+/* Analize tab Status card styling (match control) */
+#tab-analize .card #analizeStatus {
+    margin: 0.2rem 0 0 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
 /* Profiles tab cards styling */
 #tab-profiles .card .subtext {
     font-size: 0.7rem;
@@ -306,6 +399,16 @@ html {
 
 #tab-profiles label.inline-field input,
 #tab-profiles label.inline-field select {
+    font-size: 0.75rem;
+    padding: 0.35rem;
+}
+
+/* Analize tab inline label and controls font to match other tabs */
+#tab-analize .inline-field > span:first-child {
+    font-size: 0.75rem;
+}
+
+#tab-analize .inline-field select {
     font-size: 0.75rem;
     padding: 0.35rem;
 }
@@ -1463,6 +1566,71 @@ footer {
     button:hover:enabled {
         transform: none;
     }
+}
+
+/* Mode Description Card styling */
+#modeDescriptionCard h3 {
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0.25rem 0;
+    font-weight: 600;
+    color: #f0f6fc;
+}
+
+#modeDescriptionCard h4 {
+    font-size: 0.75rem;
+    margin: 0.75rem 0 0.25rem 0;
+    font-weight: 600;
+    color: #f0f6fc;
+}
+
+#modeDescriptionCard p {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    margin: 0 0 0.5rem 0;
+    color: #c9d1d9;
+}
+
+#modeDescriptionCard ul {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    margin: 0 0 0.5rem 0;
+    padding-left: 1.2rem;
+    color: #c9d1d9;
+}
+
+#modeDescriptionCard li {
+    margin-bottom: 0.25rem;
+}
+
+#modeDescriptionCard select {
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(13, 17, 23, 0.9);
+    color: #f0f6fc;
+    font-size: 0.8rem;
+    width: 100%;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+#modeDescriptionCard select:focus {
+    outline: none;
+    border-color: #149eca;
+    background: rgba(13, 17, 23, 0.95);
+}
+
+#modeDescriptionCard select option {
+    background: #161b22;
+    color: #f0f6fc;
+    padding: 0.5rem;
+}
+
+/* Ensure consistent padding for analyze tab cards */
+#tab-analize .card {
+    padding: 0.5rem 0.75rem;
 }
 
 /* Dark Mode Support (ensures proper contrast) */

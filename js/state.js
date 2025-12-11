@@ -15,6 +15,15 @@ export const state = {
     lastRxData: null,      // Last 'data' type message
     lastRxStatus: null,    // Last 'status' type message
     lastRxProfiles: null   // Last 'profiles' type message
+    ,
+    analysis: {
+        running: false,
+        stopping: false,
+        mode: null,
+        lastError: null,
+        data: null, // Current run data
+        history: [] // Array of past runs
+    }
 };
 
 // BLE connection state

@@ -1,12 +1,22 @@
 // Connection tab module
-import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUID, APP_DISCOVERY_SERVICE_UUID, APP_INFO_CHARACTERISTIC_UUID, decoder } from './constants.js';
-import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from './state.js';
-import { setStatus, appendLog, vibrate, vibratePattern } from './utils.js';
-import { sendCommand, clearCommandQueue } from './bluetooth.js';
+import { NUS_SERVICE_UUID, NUS_RX_CHARACTERISTIC_UUID, NUS_TX_CHARACTERISTIC_UUID, APP_DISCOVERY_SERVICE_UUID, APP_INFO_CHARACTERISTIC_UUID, decoder } from '../constants.js';
+
+import { state, setBleDevice, setGattServer, setCommandCharacteristic, setTelemetryCharacteristic, getBleDevice, getGattServer } from '../state.js';
+import { setStatus } from "../utils/statusUtil.js";
+import { appendLog } from '../utils/logUtils.js';
+import { vibrate, vibratePattern } from '../utils/haptics.js';
+import { sendCommand, clearCommandQueue } from '../utils/bluetooth.js';
+
 import { getCurrentActiveProfileName, getCurrentActiveProfile } from './profilesTab.js';
 import { resetActiveProfile, resetProfilesTabUI } from './profilesTab.js';
 import { checkMotorStatus, resetControlTabUI } from './controlTab.js';
 
+// ==================================================================================================== //
+
+
+/**
+ * Updates the availability of control tab elements based on connection and profile status.
+ */
 export function updateControlsAvailability() {
     const controlElements = document.querySelectorAll('[data-profile-required]');
     const controlStatus = document.getElementById('controlStatus');
@@ -425,6 +435,30 @@ function updateBatteryIndicator(voltage) {
     }
 }
 
+// Analize tab indicators (use Analize IDs)
+function updateBatteryIndicatorAnalize(voltage) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.batteryCellCount || activeProfile.batteryCellCount === 0) {
+        const parent = document.querySelector('.metric:has(#analizeVoltage)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const cellCount = activeProfile.batteryCellCount;
+    const minVoltagePerCell = 3.0;
+    const maxVoltagePerCell = 4.2;
+    const minVoltage = cellCount * minVoltagePerCell;
+    const maxVoltage = cellCount * maxVoltagePerCell;
+    let percentage = ((voltage - minVoltage) / (maxVoltage - minVoltage)) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 60) color = 'rgba(57, 238, 99, 0.6)';
+    else if (percentage > 30) color = 'rgba(246, 188, 15, 0.6)';
+    else if (percentage > 15) color = 'rgba(252, 114, 64, 0.6)';
+    else color = 'rgba(250, 60, 79, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeVoltage)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+}
+
 function updateRPMIndicator(rpm) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxRPM || activeProfile.maxRPM === 0) {
@@ -454,6 +488,25 @@ function updateRPMIndicator(rpm) {
     if (rpmMetricParent) {
         rpmMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
     }
+}
+
+function updateRPMIndicatorAnalize(rpm) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxRPM || activeProfile.maxRPM === 0) {
+        const parent = document.querySelector('.metric:has(#analizeRpm)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const maxRPM = activeProfile.maxRPM;
+    let percentage = (rpm / maxRPM) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 90) color = 'rgba(250, 60, 79, 0.6)';
+    else if (percentage > 70) color = 'rgba(252, 114, 64, 0.6)';
+    else if (percentage > 50) color = 'rgba(246, 188, 15, 0.6)';
+    else color = 'rgba(57, 238, 99, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeRpm)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
 }
 
 function updateThrustIndicator(thrust) {
@@ -489,6 +542,26 @@ function updateThrustIndicator(thrust) {
     }
 }
 
+function updateThrustIndicatorAnalize(thrust) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxThrust || activeProfile.maxThrust === 0) {
+        const parent = document.querySelector('.metric:has(#analizeThrust)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const thrustKg = thrust / 1000;
+    const maxThrust = activeProfile.maxThrust;
+    let percentage = (thrustKg / maxThrust) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 90) color = 'rgba(250, 60, 79, 0.6)';
+    else if (percentage > 70) color = 'rgba(252, 114, 64, 0.6)';
+    else if (percentage > 50) color = 'rgba(246, 188, 15, 0.6)';
+    else color = 'rgba(57, 238, 99, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeThrust)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+}
+
 function updateCurrentIndicator(current) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxCurrent || activeProfile.maxCurrent === 0) {
@@ -518,6 +591,25 @@ function updateCurrentIndicator(current) {
     if (currentMetricParent) {
         currentMetricParent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
     }
+}
+
+function updateCurrentIndicatorAnalize(current) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxCurrent || activeProfile.maxCurrent === 0) {
+        const parent = document.querySelector('.metric:has(#analizeCurrent)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const maxCurrent = activeProfile.maxCurrent;
+    let percentage = (current / maxCurrent) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 90) color = 'rgba(250, 60, 79, 0.6)';
+    else if (percentage > 70) color = 'rgba(252, 114, 64, 0.6)';
+    else if (percentage > 50) color = 'rgba(246, 188, 15, 0.6)';
+    else color = 'rgba(57, 238, 99, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeCurrent)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
 }
 
 function updateESCTempIndicator(temp) {
@@ -551,6 +643,25 @@ function updateESCTempIndicator(temp) {
     }
 }
 
+function updateESCTempIndicatorAnalize(temp) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxESCTemp || activeProfile.maxESCTemp === 0) {
+        const parent = document.querySelector('.metric:has(#analizeEscTemp)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const maxTemp = activeProfile.maxESCTemp;
+    let percentage = (temp / maxTemp) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 90) color = 'rgba(250, 60, 79, 0.6)';
+    else if (percentage > 70) color = 'rgba(252, 114, 64, 0.6)';
+    else if (percentage > 50) color = 'rgba(246, 188, 15, 0.6)';
+    else color = 'rgba(57, 238, 99, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeEscTemp)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+}
+
 function updateMotorTempIndicator(temp) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxMotorTemp || activeProfile.maxMotorTemp === 0) {
@@ -582,10 +693,31 @@ function updateMotorTempIndicator(temp) {
     }
 }
 
+function updateMotorTempIndicatorAnalize(temp) {
+    const activeProfile = getCurrentActiveProfile();
+    if (!activeProfile || !activeProfile.maxMotorTemp || activeProfile.maxMotorTemp === 0) {
+        const parent = document.querySelector('.metric:has(#analizeMotorTemp)');
+        if (parent) parent.style.background = '';
+        return;
+    }
+    const maxTemp = activeProfile.maxMotorTemp;
+    let percentage = (temp / maxTemp) * 100;
+    percentage = Math.max(0, Math.min(100, percentage));
+    let color;
+    if (percentage > 90) color = 'rgba(250, 60, 79, 0.6)';
+    else if (percentage > 70) color = 'rgba(252, 114, 64, 0.6)';
+    else if (percentage > 50) color = 'rgba(246, 188, 15, 0.6)';
+    else color = 'rgba(57, 238, 99, 0.6)';
+    const parent = document.querySelector('.metric:has(#analizeMotorTemp)');
+    if (parent) parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+}
+
 function handleTelemetry(event) {
     const voltageMetric = document.getElementById('voltageMetric');
     const currentMetric = document.getElementById('currentMetric');
+    const powerMetric = document.getElementById('powerMetric');
     const rpmMetric = document.getElementById('rpmMetric');
+    const thrustMetric = document.getElementById('thrustMetric');
     const escTempMetric = document.getElementById('escTempMetric');
     const motorTempMetric = document.getElementById('motorTempMetric');
     const firmwareVersion = document.getElementById('firmwareVersion');
@@ -634,19 +766,137 @@ function handleTelemetry(event) {
                     motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
                     updateMotorTempIndicator(msg.motorTemp);
                 }
+
+                // Mirror telemetry into Analize tab if its elements exist
+                const aV = document.getElementById('analizeVoltage');
+                const aC = document.getElementById('analizeCurrent');
+                const aP = document.getElementById('analizePower');
+                const aRPM = document.getElementById('analizeRpm');
+                const aT = document.getElementById('analizeThrust');
+                const aET = document.getElementById('analizeEscTemp');
+                const aMT = document.getElementById('analizeMotorTemp');
+
+                if (aV && msg.voltage !== undefined) aV.textContent = `${msg.voltage.toFixed(2)} V`;
+                if (aV && msg.voltage !== undefined) updateBatteryIndicatorAnalize(msg.voltage);
+                if (aC && msg.current !== undefined) aC.textContent = `${msg.current.toFixed(2)} A`;
+                if (aC && msg.current !== undefined) updateCurrentIndicatorAnalize(msg.current);
+                if (aP && msg.power !== undefined) aP.textContent = `${msg.power.toFixed(2)} W`;
+                if (aRPM && msg.rpm !== undefined) aRPM.textContent = `${msg.rpm}`;
+                if (aRPM && msg.rpm !== undefined) updateRPMIndicatorAnalize(msg.rpm);
+                if (aT && msg.thrust !== undefined) aT.textContent = `${msg.thrust.toFixed(2)} g`;
+                if (aT && msg.thrust !== undefined) updateThrustIndicatorAnalize(msg.thrust);
+                if (aET && msg.escTemp !== undefined) aET.textContent = `${msg.escTemp.toFixed(1)} °C`;
+                if (aET && msg.escTemp !== undefined) updateESCTempIndicatorAnalize(msg.escTemp);
+                if (aMT && msg.motorTemp !== undefined) aMT.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+                if (aMT && msg.motorTemp !== undefined) updateMotorTempIndicatorAnalize(msg.motorTemp);
             } else {
                 console.log('Telemetry update blocked - no active profile. Current profile name:', activeProfileName);
             }
             
             // Update status indicators
-            if (msg.status !== undefined) updateStatusIndicators(msg.status);
+            if (msg.status !== undefined) {
+                state.lastRxStatus = msg;
+                updateStatusIndicators(msg.status);
+            }
         }
         // Handle status messages
         else if (msg.type === 'status') {
-            // Store in global state
-            state.lastRxStatus = msg;
+            console.log('Status message received:', msg);
+            // Construct status bitmask if not provided as single number
+            let statusBits = msg.status;
+            if (typeof statusBits !== 'number') {
+                statusBits = 0;
+                // If status is an object with boolean fields
+                if (typeof msg.status === 'object' && msg.status !== null) {
+                    const bitMapping = {
+                        usrCfgProfOk: 1 << 0,
+                        dshotOk: 1 << 1,
+                        kissTelemOk: 1 << 2,
+                        hx711Ok: 1 << 3,
+                        ntcSensorOk: 1 << 4,
+                        dshotTaskRunning: 1 << 5,
+                        kissTelemTaskRunning: 1 << 6,
+                        sensorTaskRunning: 1 << 7,
+                        armed: 1 << 8,
+                        spinning: 1 << 9,
+                        dshotSendOk: 1 << 10,
+                        kissTelemReadOk: 1 << 11,
+                        hx711TareOk: 1 << 12,
+                        hx711ReadOk: 1 << 13,
+                        ntcSensorReadOk: 1 << 14,
+                        warnBatteryLow: 1 << 15,
+                        warnEscOverheat: 1 << 16,
+                        warnMotorOverheat: 1 << 17,
+                        warnOverCurrent: 1 << 18,
+                        warnOverRpm: 1 << 19,
+                        warnMotorStall: 1 << 20,
+                        warnFullUsrCfgPrfls: 1 << 21
+                    };
+                    for (const [key, bit] of Object.entries(bitMapping)) {
+                        if (msg.status[key]) statusBits |= bit;
+                    }
+                } else {
+                    // Map individual boolean fields at top level
+                    const bitMapping = {
+                        usrCfgProfOk: 1 << 0,
+                        dshotOk: 1 << 1,
+                        kissTelemOk: 1 << 2,
+                        hx711Ok: 1 << 3,
+                        ntcSensorOk: 1 << 4,
+                        dshotTaskRunning: 1 << 5,
+                        kissTelemTaskRunning: 1 << 6,
+                        sensorTaskRunning: 1 << 7,
+                        armed: 1 << 8,
+                        spinning: 1 << 9,
+                        dshotSendOk: 1 << 10,
+                        kissTelemReadOk: 1 << 11,
+                        hx711TareOk: 1 << 12,
+                        hx711ReadOk: 1 << 13,
+                        ntcSensorReadOk: 1 << 14,
+                        warnBatteryLow: 1 << 15,
+                        warnEscOverheat: 1 << 16,
+                        warnMotorOverheat: 1 << 17,
+                        warnOverCurrent: 1 << 18,
+                        warnOverRpm: 1 << 19,
+                        warnMotorStall: 1 << 20,
+                        warnFullUsrCfgPrfls: 1 << 21
+                    };
+                    for (const [key, bit] of Object.entries(bitMapping)) {
+                        if (msg[key]) statusBits |= bit;
+                    }
+                }
+            }
             
-            if (msg.status !== undefined) updateStatusIndicators(msg.status);
+            // Store in global state with constructed status
+            state.lastRxStatus = { ...msg, status: statusBits };
+            
+            // Update status indicators
+            updateStatusIndicators(statusBits);
+
+            // Forward warnings to Analize status (if present in future payloads)
+            if (typeof window.updateAnalizeStatusUI === 'function') {
+                const STATUS_BITS = {
+                    WARN_BATTERY_LOW: 1 << 15,
+                    WARN_ESC_OVERHEAT: 1 << 16,
+                    WARN_MOTOR_OVERHEAT: 1 << 17,
+                    WARN_OVER_CURRENT: 1 << 18,
+                    WARN_OVER_RPM: 1 << 19,
+                    WARN_MOTOR_STALL: 1 << 20,
+                    WARN_FULL_USR_CFG_PRFLS: 1 << 21
+                };
+                const s = msg.status || 0;
+                const warnings = [];
+                if (s & STATUS_BITS.WARN_BATTERY_LOW) warnings.push('Battery low');
+                if (s & STATUS_BITS.WARN_ESC_OVERHEAT) warnings.push('ESC overheat');
+                if (s & STATUS_BITS.WARN_MOTOR_OVERHEAT) warnings.push('Motor overheat');
+                if (s & STATUS_BITS.WARN_OVER_CURRENT) warnings.push('Over current');
+                if (s & STATUS_BITS.WARN_OVER_RPM) warnings.push('Over RPM');
+                if (s & STATUS_BITS.WARN_MOTOR_STALL) warnings.push('Motor stall');
+                if (s & STATUS_BITS.WARN_FULL_USR_CFG_PRFLS) warnings.push('Profiles full');
+                if (warnings.length) {
+                    window.updateAnalizeStatusUI({ warn: warnings.join(', ') });
+                }
+            }
         }
         // Handle profiles messages
         else if (msg.type === 'profiles') {
@@ -802,4 +1052,9 @@ function updateStatusIndicators(status) {
     
     // Check motor status for auto-disarm
     checkMotorStatus(status);
+
+    // Notify Analize tab to refresh controls/status
+    if (typeof window.updateAnalizeStatusUI === 'function') {
+        window.updateAnalizeStatusUI();
+    }
 }

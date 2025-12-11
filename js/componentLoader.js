@@ -29,6 +29,7 @@ export async function loadComponents() {
         loadComponent('components/tab-connection.html', '#tab-connection-container'),
         loadComponent('components/tab-profiles.html', '#tab-profiles-container'),
         loadComponent('components/tab-control.html', '#tab-control-container'),
+        loadComponent('components/tab-analize.html', '#tab-analize-container'),
         loadComponent('components/tab-results.html', '#tab-results-container'),
         loadComponent('components/tab-logs.html', '#tab-logs-container'),
         loadComponent('components/status-indicators.html', '.status-bar-content', true), // Append to status-bar-content

@@ -1,5 +1,9 @@
 // Logs tab module
-import { logFilters, updateLogDisplay, vibrate } from './utils.js';
+import { vibrate } from '../utils/haptics.js';
+import { logFilters, updateLogDisplay } from '../utils/logUtils.js';   
+
+// ==================================================================================== //
+
 
 export function initLogsTab() {
     const infoCheckbox = document.getElementById('infoLogCheckbox');

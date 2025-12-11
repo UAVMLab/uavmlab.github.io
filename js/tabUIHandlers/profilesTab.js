@@ -1,7 +1,8 @@
 // Profiles tab module
-import { state } from './state.js';
-import { sendCommand } from './bluetooth.js';
-import { appendLog, vibrate, vibratePattern } from './utils.js';
+import { state } from '../state.js';
+import { sendCommand } from '../utils/bluetooth.js';
+import { vibrate, vibratePattern } from '../utils/haptics.js';
+import { appendLog } from '../utils/logUtils.js';
 
 let currentProfile = null;
 let receivedProfiles = [];

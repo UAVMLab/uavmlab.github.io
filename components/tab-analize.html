@@ -1,0 +1,127 @@
+<section class="tab-panel" id="tab-analize" role="tabpanel">
+    <div class="panel-grid">
+
+        <section class="card" id="telemetryCard" data-block-interaction>
+            <h2>Live Telemetry</h2>
+            <div class="metrics-grid">
+                <div class="metric-row">
+                    <article class="metric">
+                        <h3>Voltage</h3>
+                        <p id="analizeVoltage">--</p>
+                    </article>
+                    <article class="metric">
+                        <h3>Current</h3>
+                        <p id="analizeCurrent">--</p>
+                    </article>
+                    <article class="metric">
+                        <h3>Power</h3>
+                        <p id="analizePower">--</p>
+                    </article>
+                </div>
+                <div class="metric-row">
+                    <article class="metric">
+                        <h3>RPM</h3>
+                        <p id="analizeRpm">--</p>
+                    </article>
+                    <article class="metric">
+                        <h3>Thrust</h3>
+                        <p id="analizeThrust">--</p>
+                    </article>
+                </div>
+                <div class="metric-row">
+                    <article class="metric">
+                        <h3>ESC Temp</h3>
+                        <p id="analizeEscTemp">--</p>
+                    </article>
+                    <article class="metric">
+                        <h3>Motor Temp</h3>
+                        <p id="analizeMotorTemp">--</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+        <section class="card" id="analizeCard">
+            <h2>Analize</h2>
+
+            <div class="inline-field" data-connected-only style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                <span style="min-width: auto;">Mode:</span>
+                <select id="analizeModeSelect" disabled style="flex: 1; min-width: 220px;">
+                    <option value="sweep">Static Throttle Sweep</option>
+                    <option value="step">Step Response</option>
+                    <option value="endurance">Fixed Throttle Endurance</option>
+                    <option value="ir">Battery IR (Current Steps)</option>
+                    <option value="kv">KV Estimation</option>
+                    <option value="thermal">ESC Thermal Stress</option>
+                    <option value="mapping">Prop/Motor Mapping</option>
+                </select>
+            </div>
+            <div class="subtext" id="analizeModeHint" style="margin-top: 0.35rem;">Select a mode to configure parameters.</div>
+
+            <!-- Parameters inline below mode -->
+            <div id="analize-params-card" class="params-grid" style="margin-top: 0.4rem;"></div>
+        </section>
+
+        
+
+        <!-- Buttons card (no title) -->
+        <section class="card">
+            <div class="button-row" data-connected-only style="gap: 0.5rem;">
+                <button id="analizeStartButton" class="success" disabled>Start</button>
+                <button id="analizeStopButton" class="neutral" disabled>Stop</button>
+            </div>
+        </section>
+
+        <!-- Status card -->
+        <section class="card">
+            <h2>Status</h2>
+            <p id="analizeStatus">Awaiting connection.</p>
+            <div id="analizeProgress" style="display: none; margin-top: 0.5rem;">
+                <div class="progress-bar" style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div class="progress-fill" id="progressFill" style="height: 100%; background: #149eca; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+                <span id="progressText" style="display: block; text-align: center; margin-top: 0.25rem; font-size: 0.8rem; color: #f0f6fc;"></span>
+            </div>
+        </section>
+
+        <!-- Graphs card -->
+        <section class="card" id="graphsCard">
+            <h2>Analysis Graphs</h2>
+            <div style="margin-bottom: 0.5rem;">
+                <select id="graphMetricSelect">
+                    <option value="throttle">Throttle</option>
+                    <option value="voltage">Voltage</option>
+                    <option value="current">Current</option>
+                    <option value="power">Power</option>
+                    <option value="rpm">RPM</option>
+                    <option value="thrust">Thrust</option>
+                    <option value="escTemp">ESC Temp</option>
+                    <option value="motorTemp">Motor Temp</option>
+                </select>
+                <button id="exportDataButton" style="margin-left: 0.5rem;">Export CSV</button>
+            </div>
+            <canvas id="analyzeChart" width="400" height="200"></canvas>
+        </section>
+
+        <!-- Mode Description card -->
+        <section class="card" id="modeDescriptionCard">
+            <h2>Mode Description</h2>
+            <div style="margin-bottom: 0.5rem;">
+                <select id="descriptionModeSelect">
+                    <option value="">Select a Mode</option>
+                    <option value="sweep">Static Throttle Sweep</option>
+                    <option value="step">Step Response</option>
+                    <option value="endurance">Fixed Throttle Endurance</option>
+                    <option value="ir">Battery IR (Current Steps)</option>
+                    <option value="kv">KV Estimation</option>
+                    <option value="thermal">ESC Thermal Stress</option>
+                    <option value="mapping">Prop/Motor Mapping</option>
+                </select>
+            </div>
+            <div id="modeDescriptionContent">
+                <h3>Select a Mode</h3>
+                <p>Choose an analysis mode from the dropdown above to see detailed information about what it does and how to interpret the results.</p>
+            </div>
+        </section>
+
+    </div>
+</section>

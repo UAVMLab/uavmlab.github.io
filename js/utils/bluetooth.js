@@ -1,7 +1,10 @@
 // Bluetooth communication module
-import { encoder } from './constants.js';
-import { getCommandCharacteristic } from './state.js';
-import { appendLog } from './utils.js';
+import { encoder } from '../constants.js';
+import { getCommandCharacteristic } from '../state.js';
+import { appendLog } from './logUtils.js';
+
+// ==================================================================================================== //
+
 
 // Command queue to prevent concurrent GATT operations
 let commandQueue = [];

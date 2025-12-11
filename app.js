@@ -1,12 +1,14 @@
 // Main application entry point
 import { loadComponents } from './js/componentLoader.js';
-import { setStatus } from './js/utils.js';
+import { setStatus } from './js/utils/statusUtil.js';
 import { initNavigation } from './js/navigation.js';
-import { initConnectionTab } from './js/connectionTab.js';
-import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage } from './js/profilesTab.js';
-import { initControlTab, initStatusDotHandlers } from './js/controlTab.js';
-import { initResultsTab } from './js/resultsTab.js';
-import { initLogsTab } from './js/logsTab.js';
+
+import { initConnectionTab } from './js/tabUIHandlers/connectionTab.js';
+import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage } from './js/tabUIHandlers/profilesTab.js';
+import { initControlTab, initStatusDotHandlers } from './js/tabUIHandlers/controlTab.js';
+import { initResultsTab } from './js/tabUIHandlers/resultsTab.js';
+import { initLogsTab } from './js/tabUIHandlers/logsTab.js';
+import { initAnalizeTab } from './js/tabUIHandlers/analizeTab.js';
 
 // Expose functions globally so connectionTab can call them
 window.updateProfileList = updateProfileList;
@@ -25,6 +27,7 @@ async function initApp() {
     initConnectionTab();
     initProfilesTab();
     initControlTab();
+    initAnalizeTab();
     initResultsTab();
     initLogsTab();
     
