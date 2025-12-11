@@ -1648,3 +1648,29 @@ footer {
         font-size: 0.65rem !important;
     }
 }
+
+#graphsCard select#graphMetricSelect {
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    background: rgba(13, 17, 23, 0.9);
+    color: #f0f6fc;
+    font-size: 0.8rem;
+    width: auto;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+#graphsCard select#graphMetricSelect:focus {
+    outline: none;
+    border-color: #149eca;
+    background: rgba(13, 17, 23, 0.95);
+}
+
+#graphsCard select#graphMetricSelect option {
+    background: #161b22;
+    color: #f0f6fc;
+    padding: 0.5rem;
+}
