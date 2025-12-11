@@ -1652,3 +1652,28 @@ footer {
 #graphsCard select#graphMetricSelect {
     font-size: 0.7rem;
 }
+
+.graph-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+@media (max-width: 600px) {
+    .graph-controls-row {
+        flex-direction: row;
+        justify-content: stretch;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    #graphsCard select#graphMetricSelect,
+    #graphsCard #exportDataButton {
+        font-size: 0.7rem;
+        min-width: 0;
+        flex: 1 1 0;
+        margin: 0;
+    }
+    #graphsCard #exportDataButton {
+        padding: 0.35rem 0.5rem;
+    }
+}

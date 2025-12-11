@@ -86,7 +86,7 @@
         <!-- Graphs card -->
         <section class="card" id="graphsCard">
             <h2>Analysis Graphs</h2>
-            <div style="margin-bottom: 0.5rem;">
+            <div class="graph-controls-row" style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
                 <select id="graphMetricSelect">
                     <option value="throttle">Throttle</option>
                     <option value="voltage">Voltage</option>
@@ -97,7 +97,7 @@
                     <option value="escTemp">ESC Temp</option>
                     <option value="motorTemp">Motor Temp</option>
                 </select>
-                <button id="exportDataButton" style="margin-left: 0.5rem;">Export CSV</button>
+                <button id="exportDataButton">Export CSV</button>
             </div>
             <canvas id="analyzeChart" width="400" height="200"></canvas>
         </section>
