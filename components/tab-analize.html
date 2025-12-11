@@ -85,21 +85,15 @@
 
         <!-- Graphs card -->
         <section class="card" id="graphsCard">
-            <h2>Analysis Graphs</h2>
-            <div class="graph-controls-row" style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <select id="graphMetricSelect">
-                    <option value="throttle">Throttle</option>
-                    <option value="voltage">Voltage</option>
-                    <option value="current">Current</option>
-                    <option value="power">Power</option>
-                    <option value="rpm">RPM</option>
-                    <option value="thrust">Thrust</option>
-                    <option value="escTemp">ESC Temp</option>
-                    <option value="motorTemp">Motor Temp</option>
-                </select>
-                <button id="exportDataButton">Export CSV</button>
-                <button id="fullscreenGraphButton" title="View Fullscreen" style="font-size:1.1em;padding:0.35rem 0.7rem;">⛶</button>
-            </div>
+            <h2 style="position:relative;">
+                Analysis Graphs
+                <span style="position:absolute; top:0.5rem; right:0.5rem; display:flex; gap:0.3rem;">
+                    <button id="exportDataButton" title="Export CSV" style="background:none;border:none;padding:0.2rem 0.3rem;font-size:1.1em;cursor:pointer;line-height:1;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                    <button id="fullscreenGraphButton" title="View Fullscreen" style="background:none;border:none;padding:0.2rem 0.3rem;font-size:1.1em;cursor:pointer;line-height:1;">⛶</button>
+                </span>
+            </h2>
             <div id="analyzeChartContainer" style="position:relative;">
                 <canvas id="analyzeChart" width="400" height="200"></canvas>
             </div>

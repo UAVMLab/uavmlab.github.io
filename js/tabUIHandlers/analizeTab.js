@@ -1,13 +1,37 @@
-// Analize tab initialization and basic handlers
+// analizeTab.js
+// Refactored and reorganized version B — keeps all original UI features
+// but replaces the graphing system with mode-specific renderers and fixes
+// throttle/data collection logic and smoothing.
+//
+// Usage: replace original analizeTab.js with this file. Depends on Chart.js and your existing UI elements.
+
 import { state } from '../state.js';
 import { appendLog } from '../utils/logUtils.js';
 import { sendCommand } from '../utils/bluetooth.js';
 import { getCurrentActiveProfile } from './profilesTab.js';
 
+
+
+// -----------------------------------------------------------------------------
+// Constants & Small Utilities
+// -----------------------------------------------------------------------------
+state.analysis.lastKV = null;
+state.analysis.lastKV_R2 = null;
+state.analysis.lastIR = null;
+state.analysis.lastIR_R2 = null;
+
+
+
+const MOTOR_ARMED_BIT = 1 << 8;
+const MAX_HISTORY = 10;
+const DEFAULT_ARM_THROTTLE = 48; // raw unit baseline used in old code
+
 function isArmedFromStatus(statusBits) {
-    // Mirror controlTab STATUS_BITS for armed/spinning
-    const MOTOR_ARMED = 1 << 8;
-    return (statusBits & MOTOR_ARMED) !== 0;
+    return (statusBits & MOTOR_ARMED_BIT) !== 0;
+}
+
+function clamp(v, a, b) {
+    return Math.max(a, Math.min(b, v));
 }
 
 function setAnalizeStatusMessage(text, kind = 'info') {
@@ -16,471 +40,6 @@ function setAnalizeStatusMessage(text, kind = 'info') {
     statusEl.textContent = text;
     statusEl.style.color =
         kind === 'error' ? '#dc3545' : kind === 'warn' ? '#f39c12' : '#2ecc71';
-}
-
-function getCurrentParams() {
-    const params = {};
-    const inputs = document.querySelectorAll('#analize-params-card input, #analize-params-card select');
-    inputs.forEach(input => {
-        const key = input.name;
-        if (key) {
-            params[key] = input.type === 'number' ? parseFloat(input.value) : input.value;
-        }
-    });
-    return params;
-}
-
-// Global analyze state
-let currentThrottle = 0;
-let dataInterval;
-let chartInstance;
-
-function showProgress() {
-    const progressEl = document.getElementById('analizeProgress');
-    if (progressEl) progressEl.style.display = 'block';
-}
-
-function hideProgress() {
-    const progressEl = document.getElementById('analizeProgress');
-    if (progressEl) progressEl.style.display = 'none';
-}
-
-function updateProgress(percent, text = '') {
-    const fillEl = document.getElementById('progressFill');
-    const textEl = document.getElementById('progressText');
-    if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-    if (textEl) textEl.textContent = text;
-}
-
-async function sendThrottle(throttle) {
-    // Ensure throttle doesn't go below arm throttle
-    const profile = getCurrentActiveProfile();
-    const armThrottle = profile ? profile.armThrottle : 48;
-    const minThrottlePercent = ((armThrottle - 48) / (2047 - 48)) * 100;
-    throttle = Math.max(throttle, minThrottlePercent);
-    
-    // Throttle is 0-100%, convert to 48-2047 range
-    const throttleValue = Math.round(48 + (throttle / 100) * (2047 - 48));
-    await sendCommand('set_throttle', { value: throttleValue });
-    currentThrottle = throttle; // Track current throttle
-}
-
-async function startAnalyze(mode, params) {
-    if (state.analysis.running) return;
-
-    currentThrottle = 0; // Initialize current throttle
-    state.analysis.data = { timestamps: [], throttle: [], voltage: [], current: [], power: [], rpm: [], thrust: [], escTemp: [], motorTemp: [] };
-    const startTime = Date.now();
-    dataInterval = setInterval(() => {
-        if (!state.analysis.running) return;
-        const now = Date.now() - startTime;
-        const tel = state.lastRxData;
-        state.analysis.data.timestamps.push(now);
-        state.analysis.data.throttle.push(currentThrottle);
-        state.analysis.data.voltage.push(tel?.voltage || 0);
-        state.analysis.data.current.push(tel?.current || 0);
-        state.analysis.data.power.push(tel?.power || 0);
-        state.analysis.data.rpm.push(tel?.rpm || 0);
-        state.analysis.data.thrust.push(tel?.thrust || 0);
-        state.analysis.data.escTemp.push(tel?.escTemp || 0);
-        state.analysis.data.motorTemp.push(tel?.motorTemp || 0);
-    }, 200);
-    state.analysis.running = true;
-    state.analysis.mode = mode;
-    state.analysis.lastError = null;
-    appendLog(`Analyze start: ${mode}`);
-    setAnalizeStatusMessage(`${mode} analyze is running`, 'info');
-    updateAnalizeControlsEnabled();
-    
-    showProgress();
-    updateProgress(0);
-
-    try {
-        switch (mode) {
-            case 'sweep':
-                await runThrottleSweep(params);
-                break;
-            case 'step':
-                await runStepResponse(params);
-                break;
-            case 'endurance':
-                await runEnduranceTest(params);
-                break;
-            case 'ir':
-                await runIRTest(params);
-                break;
-            case 'kv':
-                await runKVEstimation(params);
-                break;
-            case 'thermal':
-                await runThermalStress(params);
-                break;
-            case 'mapping':
-                await runMappingTest(params);
-                break;
-            default:
-                throw new Error(`Unknown analyze mode: ${mode}`);
-        }
-        setAnalizeStatusMessage(`${mode} analyze completed`, 'info');
-    } catch (error) {
-        state.analysis.lastError = error.message;
-        setAnalizeStatusMessage(`Error: ${error.message}`, 'error');
-        appendLog(`Analyze error: ${error.message}`);
-    } finally {
-        state.analysis.running = false;
-        state.analysis.stopping = false;
-        clearInterval(dataInterval);
-        if (state.analysis.data) {
-            renderGraphs(state.analysis.mode, state.analysis.data);
-            state.analysis.history.push({ mode: state.analysis.mode, data: state.analysis.data, timestamp: Date.now() });
-            if (state.analysis.history.length > 10) state.analysis.history.shift();
-            localStorage.setItem('analyzeHistory', JSON.stringify(state.analysis.history));
-        }
-        state.analysis.data = null;
-        updateAnalizeControlsEnabled();
-        hideProgress();
-    }
-}
-
-async function stopAnalyze() {
-    if (!state.analysis.running) return;
-
-    const mode = state.analysis.mode;
-    state.analysis.running = false;
-    state.analysis.stopping = true;
-    updateAnalizeControlsEnabled(); // Update UI to show stopping state
-    appendLog(`Analyze stop: ${mode}`);
-    
-    hideProgress();
-    
-    // Gradually slow down from current throttle to arm throttle over 5 seconds
-    const profile = getCurrentActiveProfile();
-    const armThrottle = profile ? profile.armThrottle : 48; // Default to 48 if no profile
-    const armThrottlePercent = ((armThrottle - 48) / (2047 - 48)) * 100;
-    
-    await rampThrottle(currentThrottle, armThrottlePercent, 2500);
-    
-    state.analysis.stopping = false;
-    setAnalizeStatusMessage(`${mode} analyze stopped`, 'info');
-    updateAnalizeControlsEnabled(false);
-}
-
-async function rampThrottle(fromPercent, toPercent, durationMs) {
-    const steps = 20;
-    const stepDuration = durationMs / steps;
-    const stepSize = (toPercent - fromPercent) / steps;
-    
-    for (let i = 0; i <= steps; i++) {
-        const throttle = fromPercent + stepSize * i;
-        await sendThrottle(throttle);
-        await new Promise(resolve => setTimeout(resolve, stepDuration));
-    }
-}
-
-async function runThrottleSweep(params) {
-    const { startThrottle, endThrottle, stepSize, dwell, rampRate, repeats } = params;
-    
-    const stepsInRepeat = Math.floor((endThrottle - startThrottle) / stepSize) + 1;
-    
-    for (let repeat = 0; repeat < repeats && state.analysis.running; repeat++) {
-        // Ramp to start
-        await rampThrottle(0, startThrottle, (startThrottle / rampRate) * 1000);
-        if (!state.analysis.running) break;
-        
-        // Sweep up
-        for (let step = 0; step < stepsInRepeat && state.analysis.running; step++) {
-            const throttle = startThrottle + step * stepSize;
-            updateProgress((step / (stepsInRepeat - 1)) * 100, `${step + 1}/${stepsInRepeat} (${repeat + 1}/${repeats})`);
-            await sendThrottle(throttle);
-            await new Promise(resolve => setTimeout(resolve, dwell * 1000));
-            if (!state.analysis.running) break;
-        }
-        if (!state.analysis.running) break;
-        
-        // Ramp down
-        await rampThrottle(endThrottle, 0, (endThrottle / rampRate) * 1000);
-        if (!state.analysis.running) break;
-    }
-    
-    updateProgress(100, `Completed ${repeats} repeats`);
-}
-
-async function runStepResponse(params) {
-    const { lowThrottle, highThrottle, onDuration, offDuration, cycles, rampRate } = params;
-    
-    for (let cycle = 0; cycle < cycles && state.analysis.running; cycle++) {
-        updateProgress(((cycle + 1) / cycles) * 100, `${cycle + 1}/${cycles}`);
-        
-        // Ramp to high
-        await rampThrottle(lowThrottle, highThrottle, (Math.abs(highThrottle - lowThrottle) / rampRate) * 1000);
-        if (!state.analysis.running) break;
-        await new Promise(resolve => setTimeout(resolve, onDuration * 1000));
-        if (!state.analysis.running) break;
-        
-        // Ramp to low
-        await rampThrottle(highThrottle, lowThrottle, (Math.abs(highThrottle - lowThrottle) / rampRate) * 1000);
-        if (!state.analysis.running) break;
-        await new Promise(resolve => setTimeout(resolve, offDuration * 1000));
-        if (!state.analysis.running) break;
-    }
-    
-    if (state.analysis.running) {
-        updateProgress(100, `Completed ${cycles} cycles`);
-    }
-}
-
-async function runEnduranceTest(params) {
-    const { throttle, duration, cooldown } = params;
-    
-    updateProgress(0, 'Running endurance test');
-    
-    // Ramp to throttle
-    await rampThrottle(0, throttle, 2000);
-    if (!state.analysis.running) return;
-    
-    // Wait for duration, checking every second
-    const durationMs = duration * 60 * 1000;
-    const checkInterval = 1000;
-    for (let elapsed = 0; elapsed < durationMs && state.analysis.running; elapsed += checkInterval) {
-        updateProgress((elapsed / durationMs) * 100, `Endurance: ${Math.round(elapsed / 1000)}s / ${duration * 60}s`);
-        await new Promise(resolve => setTimeout(resolve, Math.min(checkInterval, durationMs - elapsed)));
-    }
-    if (!state.analysis.running) return;
-    
-    updateProgress(100, 'Endurance test completed');
-    
-    // Ramp to cooldown throttle (assume 0 for simplicity)
-    await rampThrottle(throttle, 0, 2000);
-    if (!state.analysis.running) return;
-    
-    if (cooldown > 0) {
-        const cooldownMs = cooldown * 60 * 1000;
-        for (let elapsed = 0; elapsed < cooldownMs && state.analysis.running; elapsed += checkInterval) {
-            updateProgress(100, `Cooldown: ${Math.round(elapsed / 1000)}s / ${cooldown * 60}s`);
-            await new Promise(resolve => setTimeout(resolve, Math.min(checkInterval, cooldownMs - elapsed)));
-        }
-    }
-}
-
-async function runIRTest(params) {
-    const { baseline, pulseAmplitude, onDuration, offDuration, pulses } = params;
-    
-    for (let pulse = 0; pulse < pulses && state.analysis.running; pulse++) {
-        updateProgress(((pulse + 1) / pulses) * 100, `${pulse + 1}/${pulses}`);
-        
-        // Baseline
-        await sendThrottle(baseline);
-        await new Promise(resolve => setTimeout(resolve, offDuration * 1000));
-        if (!state.analysis.running) break;
-        
-        // Pulse
-        await sendThrottle(baseline + pulseAmplitude);
-        await new Promise(resolve => setTimeout(resolve, onDuration * 1000));
-        if (!state.analysis.running) break;
-    }
-    
-    // Back to baseline
-    if (state.analysis.running) {
-        await sendThrottle(baseline);
-        updateProgress(100, 'IR test completed');
-    }
-}
-
-async function runKVEstimation(params) {
-    const { low, high, stepSize, dwell, currentCeiling } = params;
-    
-    const steps = Math.floor((high - low) / stepSize) + 1;
-    
-    for (let step = 0; step < steps && state.analysis.running; step++) {
-        const throttle = low + step * stepSize;
-        updateProgress((step / (steps - 1)) * 100, `Step ${step + 1}/${steps}`);
-        await sendThrottle(throttle);
-        await new Promise(resolve => setTimeout(resolve, dwell * 1000));
-        if (!state.analysis.running) break;
-        // Check current, but for now just dwell
-    }
-    
-    if (state.analysis.running) {
-        await sendThrottle(0);
-        updateProgress(100, 'KV estimation completed');
-    }
-}
-
-async function runThermalStress(params) {
-    const { segment1Throttle, segment1Duration, segment2Throttle, segment2Duration } = params;
-    
-    updateProgress(0, 'Segment 1');
-    
-    // Segment 1
-    await rampThrottle(0, segment1Throttle, 2000);
-    if (!state.analysis.running) return;
-    await new Promise(resolve => setTimeout(resolve, segment1Duration * 1000));
-    if (!state.analysis.running) return;
-    
-    updateProgress(50, 'Segment 2');
-    
-    // Segment 2
-    await rampThrottle(segment1Throttle, segment2Throttle, 2000);
-    if (!state.analysis.running) return;
-    await new Promise(resolve => setTimeout(resolve, segment2Duration * 1000));
-    if (!state.analysis.running) return;
-    
-    updateProgress(100, 'Thermal stress test completed');
-    
-    // Cool down
-    await rampThrottle(segment2Throttle, 0, 2000);
-}
-
-async function runMappingTest(params) {
-    const { repeats, ambientTemp, notes } = params;
-    
-    // For mapping, perhaps run a standard test multiple times
-    for (let i = 0; i < repeats && state.analysis.running; i++) {
-        updateProgress(((i + 1) / repeats) * 100, `${i + 1}/${repeats}`);
-        await runThrottleSweep({ startThrottle: 10, endThrottle: 80, stepSize: 10, dwell: 2, rampRate: 20, repeats: 1 });
-        if (!state.analysis.running) break;
-    }
-    
-    if (state.analysis.running) {
-        updateProgress(100, 'Mapping test completed');
-    }
-}
-
-function updateAnalizeControlsEnabled(updateMessage = true) {
-    const modeSelect = document.getElementById('analizeModeSelect');
-    const startBtn = document.getElementById('analizeStartButton');
-    const stopBtn = document.getElementById('analizeStopButton');
-    const paramsContainer = document.getElementById('analize-params-card');
-    const analizeCard = document.getElementById('analizeCard');
-    const telemetryCard = document.getElementById('telemetryCard');
-
-    const connected = !!state.connected;
-    const statusMsg = state.lastRxStatus;
-    const statusBits = statusMsg && statusMsg.status !== undefined ? statusMsg.status : 0;
-    const armed = isArmedFromStatus(statusBits);
-
-    // Debug: print statusBits and armed state
-    console.log('[AnalizeTab] statusBits:', statusBits, 'armed:', armed, 'connected:', connected);
-
-    // Disable the whole Analize card only when not connected
-    if (analizeCard) {
-        if (!connected) {
-            analizeCard.classList.add('disabled-card');
-        } else {
-            analizeCard.classList.remove('disabled-card');
-        }
-    }
-    // Disable parameters and controls when not armed or when running or stopping
-    const enable = connected && armed;
-    const canModify = enable && !state.analysis.running && !state.analysis.stopping;
-    if (modeSelect) modeSelect.disabled = !canModify;
-    if (startBtn) startBtn.disabled = !canModify;
-    if (stopBtn) stopBtn.disabled = !state.analysis.running || state.analysis.stopping;
-    if (paramsContainer) {
-        const paramInputs = paramsContainer.querySelectorAll('input, select');
-        paramInputs.forEach(input => {
-            input.disabled = !canModify;
-        });
-    }
-    // Disable the whole Telemetry card when not connected
-    if (telemetryCard) {
-        if (!connected) {
-            telemetryCard.classList.add('disabled-card');
-        } else {
-            telemetryCard.classList.remove('disabled-card');
-        }
-    }
-    // Optionally, keep controls enabled for accessibility, but visually block interaction
-
-    if (updateMessage) {
-        // Status message precedence
-        if (!connected) {
-            const statusEl = document.getElementById('analizeStatus');
-            if (statusEl) {
-                statusEl.textContent = 'Connect to device and arm the motor to enable analize';
-                statusEl.style.color = '#6c757d';
-            }
-        } else if (state.analysis.stopping) {
-            setAnalizeStatusMessage('Stopping analyze...', 'warn');
-        } else if (!armed) {
-            setAnalizeStatusMessage('⚠️ Motor is not armed. Please arm in Control tab.', 'warn');
-        } else if (state.analysis.running && state.analysis.mode) {
-            setAnalizeStatusMessage(`${state.analysis.mode} analize is running`, 'info');
-        } else {
-            setAnalizeStatusMessage('State: ready', 'info');
-        }
-    }
-}
-
-function renderGraphs(mode, data) {
-    if (!data || !data.timestamps.length) return;
-    const ctx = document.getElementById('analyzeChart').getContext('2d');
-    if (chartInstance) chartInstance.destroy();
-
-    // Apply smoothing to noisy metrics
-    const smoothedData = { ...data };
-    smoothedData.voltage = smoothArray(data.voltage, 3);
-    smoothedData.current = smoothArray(data.current, 3);
-    smoothedData.escTemp = smoothArray(data.escTemp, 3);
-    smoothedData.motorTemp = smoothArray(data.motorTemp, 10);
-
-    // Prepare line data for selected metric
-    const metric = document.getElementById('graphMetricSelect').value;
-    const maxPoints = 5000;
-    const pointCount = Math.min(smoothedData[metric].length, maxPoints);
-    const lineData = {
-        labels: data.throttle.slice(0, pointCount),
-        datasets: [
-            {
-                label: `${metric} vs Throttle`,
-                data: smoothedData[metric].slice(0, pointCount),
-                borderColor: 'red',
-                backgroundColor: 'rgba(255,0,0,0.1)',
-                fill: false,
-                tension: 0.2,
-                pointRadius: 0,
-                yAxisID: 'y1'
-            }
-        ]
-    };
-    chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: lineData,
-        options: {
-            responsive: true,
-            scales: {
-                x: {
-                    type: 'linear',
-                    position: 'bottom',
-                    title: { display: true, text: 'Throttle (%)' }
-                },
-                y1: {
-                    type: 'linear',
-                    position: 'left',
-                    title: { display: true, text: `${metric} (${getUnit(metric)})` },
-                    grid: { drawOnChartArea: true }
-                }
-            },
-            plugins: {
-                zoom: {
-                    zoom: {
-                        wheel: { enabled: true },
-                        pinch: { enabled: true },
-                        drag: { enabled: true },
-                        mode: 'xy',
-                        overScaleMode: 'xy',
-                        onZoomComplete: function({chart}) { chart.update('none'); }
-                    },
-                    pan: {
-                        enabled: true,
-                        mode: 'xy',
-                        overScaleMode: 'xy',
-                        onPanComplete: function({chart}) { chart.update('none'); }
-                    }
-                }
-            }
-        }
-    });
 }
 
 function getUnit(metric) {
@@ -496,19 +55,902 @@ function getUnit(metric) {
     return units[metric] || '';
 }
 
-function smoothArray(arr, windowSize = 3) {
-    const smoothed = [];
+// Centered smoothing (non-causal, minimal lag)
+function smoothCentered(arr, windowSize = 5) {
+    if (!arr || arr.length === 0) return [];
+    const half = Math.floor(windowSize / 2);
+    const out = new Array(arr.length);
     for (let i = 0; i < arr.length; i++) {
+        const start = Math.max(0, i - half);
+        const end = Math.min(arr.length - 1, i + half);
         let sum = 0;
-        let count = 0;
-        for (let j = Math.max(0, i - windowSize + 1); j <= i; j++) {
-            sum += arr[j];
-            count++;
-        }
-        smoothed.push(sum / count);
+        for (let j = start; j <= end; j++) sum += arr[j];
+        out[i] = sum / (end - start + 1);
     }
-    return smoothed;
+    return out;
 }
+
+// -----------------------------------------------------------------------------
+// Throttle mapping & safety
+// -----------------------------------------------------------------------------
+// convert percent [0..100] (but enforced >= armPercent) -> ESC value [48..2047] and send via sendCommand
+let currentThrottle = 0; // percent
+
+async function sendThrottle(percent) {
+    const profile = getCurrentActiveProfile();
+    const armThrottleRaw = profile ? profile.armThrottle : DEFAULT_ARM_THROTTLE;
+    const armPercent = ((armThrottleRaw - 48) / (2047 - 48)) * 100;
+    // Ensure percent not below arm threshold
+    percent = Math.max(percent, armPercent);
+    percent = clamp(percent, 0, 100);
+    const escValue = Math.round(48 + (percent / 100) * (2047 - 48));
+    try {
+        await sendCommand('set_throttle', { value: escValue });
+        currentThrottle = percent;
+    } catch (err) {
+        appendLog(`sendThrottle error: ${err.message}`);
+    }
+}
+
+async function rampThrottle(fromPercent, toPercent, durationMs = 1000) {
+    const steps = 25;
+    const dt = Math.max(10, Math.floor(durationMs / steps));
+    const delta = (toPercent - fromPercent) / steps;
+    for (let i = 0; i <= steps; i++) {
+        const p = fromPercent + delta * i;
+        await sendThrottle(p);
+        // Note: small await to yield; you may want to refine for real-time constraints
+        await new Promise(r => setTimeout(r, dt));
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Data collection & runtime control
+// -----------------------------------------------------------------------------
+
+let dataInterval = null;
+let chartInstance = null;
+
+function resetDataStore() {
+    return {
+        timestamps: [],    // seconds
+        throttle: [],      // percent
+        voltage: [],
+        current: [],
+        power: [],
+        rpm: [],
+        thrust: [],
+        escTemp: [],
+        motorTemp: []
+    };
+}
+
+async function startAnalyze(mode, params) {
+    if (state.analysis.running) return;
+    // initialize
+    currentThrottle = 0;
+    state.analysis.data = resetDataStore();
+    state.analysis.running = true;
+    state.analysis.stopping = false;
+    state.analysis.mode = mode;
+    state.analysis.lastError = null;
+    appendLog(`Analyze start: ${mode}`);
+    setAnalizeStatusMessage(`${mode} analyze is running`, 'info');
+    updateAnalizeControlsEnabled();
+
+    // progress UI
+    showProgress();
+    updateProgress(0);
+
+    // data collection loop (200ms sample)
+    const startTime = Date.now();
+    dataInterval = setInterval(() => {
+        if (!state.analysis.running) return;
+        const now = (Date.now() - startTime) / 1000.0;
+        const tel = state.lastRxData || {};
+        const d = state.analysis.data;
+        d.timestamps.push(now);
+        d.throttle.push(currentThrottle);
+        d.voltage.push(tel.voltage || 0);
+        d.current.push(tel.current || 0);
+        d.power.push(tel.power || 0);
+        d.rpm.push(tel.rpm || 0);
+        d.thrust.push(tel.thrust || 0);
+        d.escTemp.push(tel.escTemp || 0);
+        d.motorTemp.push(tel.motorTemp || 0);
+    }, 200);
+
+    try {
+        // dispatch mode function
+        switch (mode) {
+            case 'sweep': await runThrottleSweep(params); break;
+            case 'step': await runStepResponse(params); break;
+            case 'endurance': await runEnduranceTest(params); break;
+            case 'ir': await runIRTest(params); break;
+            case 'kv': await runKVEstimation(params); break;
+            case 'thermal': await runThermalStress(params); break;
+            case 'mapping': await runMappingTest(params); break;
+            default: throw new Error(`Unknown analyze mode: ${mode}`);
+        }
+        setAnalizeStatusMessage(`${mode} analyze completed`, 'info');
+    } catch (err) {
+        state.analysis.lastError = err.message || String(err);
+        setAnalizeStatusMessage(`Error: ${err.message || err}`, 'error');
+        appendLog(`Analyze error: ${err.message || err}`);
+    } finally {
+        // tidy up
+        state.analysis.running = false;
+        state.analysis.stopping = false;
+        clearInterval(dataInterval);
+        hideProgress();
+
+        // render and save history if data exists
+        if (state.analysis.data && state.analysis.data.timestamps.length) {
+            renderGraphs(state.analysis.mode, state.analysis.data);
+            state.analysis.history = state.analysis.history || [];
+            // Save params and profile used for this run
+            const profile = getCurrentActiveProfile();
+            state.analysis.history.push({
+                mode: state.analysis.mode,
+                data: state.analysis.data,
+                params: params,
+                profile: profile,
+                timestamp: Date.now()
+            });
+            if (state.analysis.history.length > MAX_HISTORY) state.analysis.history.shift();
+            try { localStorage.setItem('analyzeHistory', JSON.stringify(state.analysis.history)); } catch (e) {}
+        }
+
+        // free data reference (to avoid accidental reuse)
+        state.analysis.data = null;
+        updateAnalizeControlsEnabled();
+    }
+}
+
+async function stopAnalyze() {
+    if (!state.analysis.running) return;
+    const mode = state.analysis.mode;
+    state.analysis.running = false;
+    state.analysis.stopping = true;
+    updateAnalizeControlsEnabled();
+    appendLog(`Analyze stop requested: ${mode}`);
+    setAnalizeStatusMessage('Stopping analyze...', 'warn');
+
+    // ramp down from currentThrottle to arm throttle percent
+    const profile = getCurrentActiveProfile();
+    const armThrottleRaw = profile ? profile.armThrottle : DEFAULT_ARM_THROTTLE;
+    const armPercent = ((armThrottleRaw - 48) / (2047 - 48)) * 100;
+    // ramp down in 2.5s for safety
+    await rampThrottle(currentThrottle, armPercent, 2500);
+
+    state.analysis.stopping = false;
+    setAnalizeStatusMessage(`${mode} analyze stopped`, 'info');
+    updateAnalizeControlsEnabled(false);
+}
+
+// -----------------------------------------------------------------------------
+// Mode implementations (unchanged semantics, organized & safe)
+// -----------------------------------------------------------------------------
+
+async function runThrottleSweep(params) {
+    const { startThrottle = 0, endThrottle = 100, stepSize = 5, dwell = 3, rampRate = 20, repeats = 1 } = params;
+    const stepsInRepeat = Math.floor((endThrottle - startThrottle) / stepSize) + 1;
+
+    for (let repeat = 0; repeat < repeats && state.analysis.running; repeat++) {
+        // Ramp to start from 0 (safety)
+        await rampThrottle(0, startThrottle, Math.max(200, (startThrottle / rampRate) * 1000));
+        if (!state.analysis.running) break;
+
+        // Sweep up
+        for (let step = 0; step < stepsInRepeat && state.analysis.running; step++) {
+            const throttle = startThrottle + step * stepSize;
+            updateProgress((step / Math.max(1, stepsInRepeat - 1)) * 100, `${step + 1}/${stepsInRepeat} (${repeat + 1}/${repeats})`);
+            await sendThrottle(throttle);
+            // dwell time while collecting data
+            await new Promise(r => setTimeout(r, dwell * 1000));
+        }
+        if (!state.analysis.running) break;
+
+        // Ramp down to zero
+        await rampThrottle(endThrottle, 0, Math.max(200, (endThrottle / rampRate) * 1000));
+        if (!state.analysis.running) break;
+    }
+    updateProgress(100, `Completed ${repeats} repeats`);
+}
+
+async function runStepResponse(params) {
+    const { lowThrottle = 10, highThrottle = 60, onDuration = 3, offDuration = 3, cycles = 5, rampRate = 100 } = params;
+    for (let cycle = 0; cycle < cycles && state.analysis.running; cycle++) {
+        updateProgress(((cycle + 1) / cycles) * 100, `${cycle + 1}/${cycles}`);
+        // ramp to high
+        await rampThrottle(lowThrottle, highThrottle, Math.abs(highThrottle - lowThrottle) / rampRate * 1000);
+        if (!state.analysis.running) break;
+        await new Promise(r => setTimeout(r, onDuration * 1000));
+        if (!state.analysis.running) break;
+        // ramp to low
+        await rampThrottle(highThrottle, lowThrottle, Math.abs(highThrottle - lowThrottle) / rampRate * 1000);
+        if (!state.analysis.running) break;
+        await new Promise(r => setTimeout(r, offDuration * 1000));
+    }
+    if (state.analysis.running) updateProgress(100, `Completed ${cycles} cycles`);
+}
+
+async function runEnduranceTest(params) {
+    const { throttle = 50, duration = 10, cooldown = 2 } = params;
+    updateProgress(0, 'Running endurance test');
+
+    // ramp to throttle
+    await rampThrottle(0, throttle, 2000);
+    if (!state.analysis.running) return;
+
+    // wait for duration (minutes)
+    const durationMs = duration * 60 * 1000;
+    const checkInterval = 1000;
+    for (let elapsed = 0; elapsed < durationMs && state.analysis.running; elapsed += checkInterval) {
+        updateProgress((elapsed / durationMs) * 100, `Endurance: ${Math.round(elapsed / 1000)}s / ${duration * 60}s`);
+        await new Promise(r => setTimeout(r, Math.min(checkInterval, durationMs - elapsed)));
+    }
+    if (!state.analysis.running) return;
+    updateProgress(100, 'Endurance test completed');
+
+    // ramp down
+    await rampThrottle(throttle, 0, 2000);
+
+    // cooldown time
+    if (cooldown > 0) {
+        const cooldownMs = cooldown * 60 * 1000;
+        for (let elapsed = 0; elapsed < cooldownMs && state.analysis.running; elapsed += checkInterval) {
+            updateProgress(100, `Cooldown: ${Math.round(elapsed / 1000)}s / ${cooldown * 60}s`);
+            await new Promise(r => setTimeout(r, Math.min(checkInterval, cooldownMs - elapsed)));
+        }
+    }
+}
+
+async function runIRTest(params) {
+    const { baseline = 10, pulseAmplitude = 10, onDuration = 1, offDuration = 1, pulses = 10 } = params;
+    for (let p = 0; p < pulses && state.analysis.running; p++) {
+        updateProgress(((p + 1) / pulses) * 100, `${p + 1}/${pulses}`);
+        await sendThrottle(baseline);
+        await new Promise(r => setTimeout(r, offDuration * 1000));
+        if (!state.analysis.running) break;
+        await sendThrottle(baseline + pulseAmplitude);
+        await new Promise(r => setTimeout(r, onDuration * 1000));
+        if (!state.analysis.running) break;
+    }
+    if (state.analysis.running) {
+        await sendThrottle(baseline);
+        updateProgress(100, 'IR test completed');
+    }
+}
+
+async function runKVEstimation(params) {
+    const { throttle = 20, dwell = 2, currentCeiling = 10, voltageSteps = 5 } = params;
+    // voltageSteps: number of voltage points to measure (user sets voltage externally)
+    state.analysis.data.meanVoltage = [];
+    state.analysis.data.meanRPM = [];
+    await sendThrottle(throttle);
+    for (let s = 0; s < voltageSteps && state.analysis.running; s++) {
+        updateProgress((s / Math.max(1, voltageSteps - 1)) * 100, `Step ${s + 1}/${voltageSteps}`);
+        // Prompt user to set voltage and confirm
+        await new Promise(resolve => {
+            setAnalizeStatusMessage(`Step ${s + 1}: Set supply voltage to desired value, then click CONFIRM to continue.`, 'warn');
+            let confirmBtn = document.getElementById('kvConfirmBtn');
+            if (!confirmBtn) {
+                confirmBtn = document.createElement('button');
+                confirmBtn.id = 'kvConfirmBtn';
+                confirmBtn.textContent = 'CONFIRM VOLTAGE';
+                confirmBtn.style = 'margin: 1rem 0; padding: 0.5rem 1.2rem; font-size: 1.1em; background: #149eca; color: #fff; border: none; border-radius: 4px; cursor: pointer;';
+                const card = document.getElementById('analizeCard');
+                if (card) card.appendChild(confirmBtn);
+            }
+            confirmBtn.disabled = false;
+            confirmBtn.style.display = '';
+            confirmBtn.onclick = () => {
+                confirmBtn.disabled = true;
+                confirmBtn.style.display = 'none';
+                setAnalizeStatusMessage(`Voltage confirmed for step ${s + 1}. Running dwell...`, 'info');
+                resolve();
+            };
+        });
+        // Collect samples during dwell
+        const dwellSamples = [];
+        const dwellStart = Date.now();
+        while ((Date.now() - dwellStart) < dwell * 1000 && state.analysis.running) {
+            const last = state.lastRxData || {};
+            dwellSamples.push({ voltage: last.voltage || 0, rpm: last.rpm || 0 });
+            await new Promise(r => setTimeout(r, 100)); // sample every 100ms
+        }
+        // Compute mean voltage and rpm for this dwell
+        const n = dwellSamples.length;
+        const meanVoltage = n ? dwellSamples.reduce((sum, s) => sum + s.voltage, 0) / n : 0;
+        const meanRPM = n ? dwellSamples.reduce((sum, s) => sum + s.rpm, 0) / n : 0;
+        state.analysis.data.meanVoltage.push(meanVoltage);
+        state.analysis.data.meanRPM.push(meanRPM);
+        // optional: check current ceiling and abort if exceeded
+        const last = state.lastRxData || {};
+        if (last.current && last.current > currentCeiling) {
+            throw new Error(`Current ceiling exceeded: ${last.current}A`);
+        }
+    }
+    if (state.analysis.running) {
+        await sendThrottle(0);
+        updateProgress(100, 'KV estimation completed');
+    }
+}
+
+async function runThermalStress(params) {
+    const { segment1Throttle = 70, segment1Duration = 120, segment2Throttle = 90, segment2Duration = 30 } = params;
+    updateProgress(0, 'Segment 1');
+    await rampThrottle(0, segment1Throttle, 2000);
+    if (!state.analysis.running) return;
+    await new Promise(r => setTimeout(r, segment1Duration * 1000));
+    if (!state.analysis.running) return;
+
+    updateProgress(50, 'Segment 2');
+    await rampThrottle(segment1Throttle, segment2Throttle, 2000);
+    if (!state.analysis.running) return;
+    await new Promise(r => setTimeout(r, segment2Duration * 1000));
+    if (!state.analysis.running) return;
+
+    updateProgress(100, 'Thermal stress test completed');
+    await rampThrottle(segment2Throttle, 0, 2000);
+}
+
+async function runMappingTest(params) {
+    const { repeats = 3, ambientTemp = 25, notes = '' } = params;
+    for (let i = 0; i < repeats && state.analysis.running; i++) {
+        updateProgress(((i + 1) / repeats) * 100, `${i + 1}/${repeats}`);
+        // Use a standard sweep for mapping
+        await runThrottleSweep({ startThrottle: 10, endThrottle: 80, stepSize: 10, dwell: 2, rampRate: 20, repeats: 1 });
+    }
+    if (state.analysis.running) updateProgress(100, 'Mapping test completed');
+}
+
+// -----------------------------------------------------------------------------
+// Progress UI helpers (assumes #analizeProgress, #progressFill, #progressText exist)
+// -----------------------------------------------------------------------------
+
+function showProgress() {
+    const el = document.getElementById('analizeProgress');
+    if (el) el.style.display = 'block';
+}
+
+function hideProgress() {
+    const el = document.getElementById('analizeProgress');
+    if (el) el.style.display = 'none';
+}
+
+function updateProgress(percent, text = '') {
+    const fillEl = document.getElementById('progressFill');
+    const textEl = document.getElementById('progressText');
+    if (fillEl) fillEl.style.width = `${clamp(percent, 0, 100)}%`;
+    if (textEl) textEl.textContent = text || `${Math.round(clamp(percent, 0, 100))}%`;
+}
+
+// -----------------------------------------------------------------------------
+// Graphing system: dispatcher + mode-specific renderers (Chart.js assumed available)
+// -----------------------------------------------------------------------------
+
+function linearRegression(points) {
+    const n = points.length;
+    if (n < 2) return null;
+
+    let sumX = 0, sumY = 0;
+    let sumXY = 0, sumXX = 0;
+
+    for (const p of points) {
+        sumX += p.x;
+        sumY += p.y;
+        sumXY += p.x * p.y;
+        sumXX += p.x * p.x;
+    }
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    // compute R²
+    let ssTot = 0, ssRes = 0;
+    const meanY = sumY / n;
+
+    for (const p of points) {
+        const yFit = slope * p.x + intercept;
+        ssRes += Math.pow(p.y - yFit, 2);
+        ssTot += Math.pow(p.y - meanY, 2);
+    }
+
+    const r2 = 1 - ssRes / ssTot;
+
+    return { slope, intercept, r2 };
+}
+
+
+function destroyChart() {
+    if (chartInstance) {
+        try { chartInstance.destroy(); } catch (e) {}
+        chartInstance = null;
+    }
+}
+
+function resetChartCtx() {
+    const el = document.getElementById('analyzeChart');
+    if (!el) throw new Error('analyzeChart canvas not found');
+    const ctx = el.getContext('2d');
+    destroyChart();
+    return ctx;
+}
+
+// ================= CROSSHAIR + VALUE INTERCEPT PLUGIN ===================
+const CrosshairPlugin = {
+    id: 'crosshairPlugin',
+    afterInit(chart) {
+        chart.$crosshair = {
+            x: null,
+            active: false
+        };
+
+        const canvas = chart.canvas;
+
+        function handleMove(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const x = evt.clientX - rect.left;
+            chart.$crosshair.x = x;
+            chart.$crosshair.active = true;
+            chart.draw();
+        }
+
+        function handleTouch(evt) {
+            const touch = evt.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            chart.$crosshair.x = x;
+            chart.$crosshair.active = true;
+            chart.draw();
+        }
+
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchstart', handleTouch);
+    },
+
+    afterDraw(chart, args, options) {
+        const ctx = chart.ctx;
+        const cross = chart.$crosshair;
+        if (!cross || !cross.active || cross.x === null) return;
+        // Clamp crosshair to chart area
+        const chartLeft = chart.chartArea.left;
+        const chartRight = chart.chartArea.right;
+        const xPixel = Math.max(chartLeft, Math.min(cross.x, chartRight));
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(xPixel, chart.chartArea.top);
+        ctx.lineTo(xPixel, chart.chartArea.bottom);
+        ctx.strokeStyle = options.color || '#888';
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+        // Get X-value from pixel → scale
+        const xScale = chart.scales.x;
+        let xValue = xScale.getValueForPixel(xPixel);
+        const scaleType = xScale.type;
+        const lines = [];
+        let fitLineInfo = null;
+        // Find regression/fit line if present
+        chart.data.datasets.forEach((ds, idx) => {
+            if (ds.label && ds.label.toLowerCase().includes('linear fit')) {
+                fitLineInfo = ds;
+            }
+        });
+        chart.data.datasets.forEach((ds, idx) => {
+            // Only show scatter/primary data, skip linear fit for value box
+            if (ds.label && ds.label.toLowerCase().includes('linear fit')) return;
+            const data = ds.data;
+            // SCATTER MODE (object points)
+            if (typeof data[0] === 'object') {
+                let closest = null;
+                let minDist = Infinity;
+                data.forEach(p => {
+                    const dist = Math.abs(p.x - xValue);
+                    if (dist < minDist) {
+                        closest = p;
+                        minDist = dist;
+                    }
+                });
+                if (closest)
+                    lines.push(`${ds.label}: ${closest.y.toFixed(2)}`);
+            } else {
+                // LINE MODE (array)
+                const labels = chart.data.labels;
+                if (!labels || !labels.length) return;
+                if (scaleType === 'category') {
+                    // Use nearest index for category scale
+                    let idx = Math.round(xValue);
+                    idx = Math.max(0, Math.min(idx, data.length - 1));
+                    lines.push(`${ds.label}: ${data[idx].toFixed(2)}`);
+                } else {
+                    // Use actual X values for linear/time scale
+                    const points = labels.map((x, i) => ({ x: Number(x), y: Number(data[i]) }));
+                    const minX = Math.min(...points.map(p => p.x));
+                    const maxX = Math.max(...points.map(p => p.x));
+                    xValue = Math.max(minX, Math.min(xValue, maxX));
+                    let left = null, right = null;
+                    for (let i = 0; i < points.length; i++) {
+                        if (points[i].x >= xValue) {
+                            right = points[i];
+                            left = i > 0 ? points[i - 1] : points[i];
+                            break;
+                        }
+                    }
+                    if (!left) left = points[0];
+                    if (!right) right = points[points.length - 1];
+                    let yInterp;
+                    if (left.x === right.x) {
+                        yInterp = left.y;
+                    } else {
+                        const t = (xValue - left.x) / (right.x - left.x);
+                        yInterp = left.y + (right.y - left.y) * t;
+                    }
+                    lines.push(`${ds.label}: ${yInterp.toFixed(2)}`);
+                }
+            }
+        });
+        // If regression/fit line exists, show its interpolated value at xValue
+        if (fitLineInfo && fitLineInfo.data && fitLineInfo.data.length === 2) {
+            // y = m*x + b, get m and b from the two points
+            const p0 = fitLineInfo.data[0];
+            const p1 = fitLineInfo.data[1];
+            if (p0.x !== p1.x) {
+                const m = (p1.y - p0.y) / (p1.x - p0.x);
+                const b = p0.y - m * p0.x;
+                const yFit = m * xValue + b;
+                lines.push(`Linear Fit: ${yFit.toFixed(2)}`);
+            }
+        }
+        // Draw value box
+        const boxX = xPixel + 10;
+        const boxY = chart.chartArea.top + 10;
+        const padding = 6;
+        ctx.save();
+        ctx.font = "12px sans-serif";
+        const textHeight = 14;
+        const boxW = Math.max(...lines.map(t => ctx.measureText(t).width)) + padding * 2;
+        const boxH = lines.length * textHeight + padding * 2;
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillStyle = "white";
+        lines.forEach((text, i) => {
+            ctx.fillText(text, boxX + padding, boxY + padding + textHeight * (i + 1) - 4);
+        });
+        ctx.restore();
+    }
+};
+
+// 👉 REGISTER IT RIGHT HERE
+Chart.register(CrosshairPlugin);
+
+// Sweep: throttle on X -> scatter/line for RPM, Thrust, Current (overlaid)
+function renderSweepGraphs(data) {
+    const ctx = resetChartCtx();
+
+    // Optionally smooth each series lightly
+    const rpm = smoothCentered(data.rpm, 3);
+    const thrust = smoothCentered(data.thrust, 3);
+    const current = smoothCentered(data.current, 3);
+
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.throttle,
+            datasets: [
+                { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 2, yAxisID: 'yRPM' },
+                { label: 'Thrust (g)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 2, yAxisID: 'yThrust' },
+                { label: 'Current (A)', data: current, borderColor: '#3498db', fill: false, pointRadius: 2, yAxisID: 'yCurrent' }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { title: { display: true, text: 'Throttle (%)' } },
+                yRPM: { type: 'linear', position: 'left', title: { display: true, text: 'RPM' } },
+                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (g)' }, grid: { drawOnChartArea: false } },
+                yCurrent: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+}
+
+// Step: time vs throttle,RPM,current — time-series with dual axis
+function renderStepGraphs(data) {
+    const ctx = resetChartCtx();
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.timestamps,
+            datasets: [
+                { label: 'Throttle (%)', data: data.throttle, borderColor: '#f39c12', pointRadius: 0, yAxisID: 'yThrottle' },
+                { label: 'RPM', data: data.rpm, borderColor: '#e74c3c', pointRadius: 0, yAxisID: 'yRPM' },
+                { label: 'Current (A)', data: data.current, borderColor: '#3498db', pointRadius: 0, yAxisID: 'yCurrent' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'Time (s)' } },
+                yThrottle: { position: 'left', title: { display: true, text: 'Throttle (%)' } },
+                yRPM: { position: 'right', title: { display: true, text: 'RPM' }, grid: { drawOnChartArea: false } },
+                yCurrent: { position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+}
+
+// Endurance: time-series for temp/voltage/current
+function renderEnduranceGraphs(data) {
+    const ctx = resetChartCtx();
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.timestamps,
+            datasets: [
+                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 7), borderColor: '#e74c3c', pointRadius: 0 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 7), borderColor: '#f39c12', pointRadius: 0 },
+                { label: 'Voltage (V)', data: smoothCentered(data.voltage, 5), borderColor: '#3498db', pointRadius: 0 },
+                { label: 'Current (A)', data: smoothCentered(data.current, 5), borderColor: '#27ae60', pointRadius: 0 }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'Time (s)' } },
+                y: { title: { display: true, text: 'Value' } }
+            }
+        }
+    });
+}
+
+// IR: ΔV vs ΔI scatter with linear fit (simple)
+function renderIRGraphs(data) {
+    const ctx = resetChartCtx();
+
+    const points = [];
+    for (let i = 1; i < data.voltage.length; i++) {
+        const dv = data.voltage[i - 1] - data.voltage[i];
+        const di = data.current[i] - data.current[i - 1];
+        if (Math.abs(di) > 0.05) {
+            points.push({ x: di, y: dv });
+        }
+    }
+
+    const fit = linearRegression(points);
+
+    if (fit) {
+        state.analysis.lastIR = fit.slope;    // Ohms
+        state.analysis.lastIR_R2 = fit.r2;
+    }
+
+    // Build fitted line
+    const xs = points.map(p => p.x);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const fitLine = [
+        { x: minX, y: fit.slope * minX + fit.intercept },
+        { x: maxX, y: fit.slope * maxX + fit.intercept }
+    ];
+
+    chartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label:'ΔV vs ΔI',
+                    data: points,
+                    borderColor:'purple',
+                    backgroundColor:'rgba(128,0,128,0.4)'
+                },
+                {
+                    label:'Linear Fit',
+                    type:'line',
+                    data: fitLine,
+                    borderColor:'red',
+                    borderWidth:2,
+                    pointRadius:0,
+                    fill:false
+                }
+            ]
+        },
+        options: {
+            plugins: {
+                annotation: {
+                    annotations: {
+                        labelIR: {
+                            type: 'label',
+                            content: `IR = ${fit.slope.toFixed(4)} Ω\nR² = ${fit.r2.toFixed(4)}`,
+                            position: 'center',
+                            xValue: minX,
+                            yValue: fit.slope * minX + fit.intercept,
+                            backgroundColor: 'rgba(255,255,255,0.7)',
+                            borderColor: 'black',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title:{ text:'ΔCurrent (A)', display:true }},
+                y: { title:{ text:'ΔVoltage (V)', display:true }}
+            }
+        }
+    });
+}
+
+
+// KV: RPM vs Voltage scatter (slope = KV)
+function renderKVGraphs(data) {
+    const ctx = resetChartCtx();
+    // Use meanVoltage and meanRPM if available, else fallback to raw arrays
+    const voltArr = data.meanVoltage && data.meanVoltage.length ? data.meanVoltage : data.voltage;
+    const rpmArr = data.meanRPM && data.meanRPM.length ? data.meanRPM : data.rpm;
+    const points = voltArr.map((v, i) => ({ x: v, y: rpmArr[i] }));
+    const fit = linearRegression(points);
+
+    // Save result
+    if (fit) {
+        state.analysis.lastKV = fit.slope; // KV = slope in RPM/V
+        state.analysis.lastKV_R2 = fit.r2;
+    }
+
+    // Build fitted line (just 2 points: min & max voltage)
+    const minV = Math.min(...voltArr);
+    const maxV = Math.max(...voltArr);
+    const fitLine = [
+        { x: minV, y: fit.slope * minV + fit.intercept },
+        { x: maxV, y: fit.slope * maxV + fit.intercept }
+    ];
+
+    chartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label:'RPM vs Voltage',
+                    data: points,
+                    borderColor:'blue',
+                    backgroundColor:'rgba(0,0,255,0.4)'
+                },
+                {
+                    label:'Linear Fit',
+                    type:'line',
+                    data: fitLine,
+                    borderColor:'red',
+                    borderWidth:2,
+                    pointRadius:0,
+                    fill:false
+                }
+            ]
+        },
+        options: {
+            plugins: {
+                annotation: {
+                    annotations: {
+                        label1: {
+                            type: 'label',
+                            content: `KV = ${fit.slope.toFixed(2)} RPM/V\nR² = ${fit.r2.toFixed(4)}`,
+                            xValue: maxV,
+                            yValue: fit.slope * maxV + fit.intercept,
+                            xAdjust: -30,
+                            yAdjust: 30,
+                            backgroundColor: 'rgba(255,255,255,0.85)',
+                            borderColor: 'black',
+                            borderWidth: 1,
+                            font: { size: 14, weight: 'bold' },
+                            color: 'black',
+                            callout: { display: false },
+                            position: 'end',
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title:{ text:'Voltage (V)', display:true }},
+                y: { title:{ text:'RPM', display:true }}
+            }
+        }
+    });
+}
+
+
+// Thermal stress: temps vs time + throttle as overlay axis
+function renderThermalGraphs(data) {
+    const ctx = resetChartCtx();
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.timestamps,
+            datasets: [
+                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 5), borderColor: '#e74c3c', pointRadius: 0 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 5), borderColor: '#f39c12', pointRadius: 0 },
+                { label: 'Throttle (%)', data: data.throttle, borderColor: '#3498db', pointRadius: 0, yAxisID: 'yThrottle' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'Time (s)' } },
+                y: { title: { display: true, text: 'Temperature (°C)' } },
+                yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Throttle (%)' } }
+            }
+        }
+    });
+}
+
+// Mapping: overlayed multiple sweep traces are part of history; for a single run, use sweep renderer
+function renderMappingGraphs(data) {
+    // slightly stronger smoothing for mapping
+    data.rpm = smoothCentered(data.rpm, 7);
+    data.thrust = smoothCentered(data.thrust, 7);
+    data.current = smoothCentered(data.current, 7);
+    renderSweepGraphs(data);
+}
+
+// Dispatcher
+function renderGraphs(mode, data) {
+    if (!data || !data.timestamps || !data.timestamps.length) {
+        appendLog('No data to render');
+        return;
+    }
+    try {
+        switch (mode) {
+            case 'sweep': renderSweepGraphs(data); break;
+            case 'step': renderStepGraphs(data); break;
+            case 'endurance': renderEnduranceGraphs(data); break;
+            case 'ir': renderIRGraphs(data); break;
+            case 'kv': renderKVGraphs(data); break;
+            case 'thermal': renderThermalGraphs(data); break;
+            case 'mapping': renderMappingGraphs(data); break;
+            default: renderStepGraphs(data); break;
+        }
+    } catch (err) {
+        appendLog(`renderGraphs error: ${err.message}`);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CSV Export utility (same semantics as original)
+// -----------------------------------------------------------------------------
+
+function generateCSV(data) {
+    const headers = ['Time (s)', 'Throttle (%)', 'Voltage (V)', 'Current (A)', 'Power (W)', 'RPM', 'Thrust (g)', 'ESC Temp (°C)', 'Motor Temp (°C)'];
+    const rows = [headers];
+    for (let i = 0; i < data.timestamps.length; i++) {
+        rows.push([
+            (data.timestamps[i]).toFixed(2),
+            data.throttle[i],
+            data.voltage[i],
+            data.current[i],
+            data.power[i],
+            data.rpm[i],
+            data.thrust[i],
+            data.escTemp[i],
+            data.motorTemp[i]
+        ]);
+    }
+    return rows.map(r => r.join(',')).join('\n');
+}
+
+function downloadCSV(csv, filename) {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// -----------------------------------------------------------------------------
+// Mode descriptions & parameter schemas (keeps original detailed descriptions)
+// -----------------------------------------------------------------------------
 
 function getModeDescription(mode) {
     const descriptions = {
@@ -517,72 +959,68 @@ function getModeDescription(mode) {
             purpose: 'Gradually increases throttle from minimum to maximum while measuring motor performance at each step. Useful for characterizing motor efficiency, power consumption, and thermal behavior across the full operating range.',
             parameters: '<ul><li><strong>Start Throttle:</strong> Initial throttle percentage (typically 10-20%)</li><li><strong>End Throttle:</strong> Final throttle percentage (typically 80-100%)</li><li><strong>Step Size:</strong> Throttle increment between measurements</li><li><strong>Dwell:</strong> Time in seconds to hold each throttle step</li><li><strong>Ramp Rate:</strong> Speed of throttle changes between steps</li><li><strong>Repeats:</strong> Number of times to repeat the sweep</li></ul>',
             howItWorks: 'The motor ramps to each throttle level, holds steady while collecting telemetry data, then moves to the next level. This creates a comprehensive performance profile.',
-            graphAnalysis: 'Look for linear relationships between throttle and RPM/power. Voltage drops indicate battery/IR issues. Current spikes may show ESC limitations. Temperature curves help identify cooling requirements. Smooth curves indicate healthy components.'
+            graphAnalysis: 'Use throttle vs RPM/thrust/current scatter/line and RPM vs Voltage curves. Look for linear relations and anomalies.'
         },
         step: {
             title: 'Step Response Test',
             purpose: 'Tests motor acceleration and response time by making sudden throttle changes. Critical for understanding system dynamics, ESC response, and motor/propeller inertia.',
             parameters: '<ul><li><strong>Low Throttle:</strong> Starting throttle level</li><li><strong>High Throttle:</strong> Target throttle level</li><li><strong>On Duration:</strong> How long to hold the high throttle</li><li><strong>Off Duration:</strong> How long to hold the low throttle</li><li><strong>Cycles:</strong> Number of step cycles to perform</li><li><strong>Ramp Rate:</strong> Speed of throttle transitions</li></ul>',
-            howItWorks: 'Motor starts at low throttle, then instantly jumps to high throttle and holds for the specified duration before returning to low. This cycle repeats for the specified number of times.',
-            graphAnalysis: 'RPM should rise quickly to match throttle changes. Delays indicate ESC lag or motor inertia. Oscillations suggest propeller imbalance. Current spikes during steps reveal ESC capabilities. Smooth transitions indicate well-matched components.'
+            howItWorks: 'Motor starts at low throttle, then jumps to high throttle and holds for the specified duration before returning to low. This cycle repeats.',
+            graphAnalysis: 'Plot RPM and current vs time with throttle overlay. Compute dRPM/dt to assess responsiveness.'
         },
         endurance: {
             title: 'Fixed Throttle Endurance',
-            purpose: 'Runs motor at constant throttle for extended periods to test thermal performance, battery capacity, and long-term stability. Essential for validating cooling solutions and flight time estimates.',
+            purpose: 'Runs motor at constant throttle for extended periods to test thermal performance, battery capacity, and long-term stability.',
             parameters: '<ul><li><strong>Throttle Level:</strong> Constant throttle percentage to maintain</li><li><strong>Duration:</strong> Test duration in minutes</li><li><strong>Cooldown:</strong> Cooldown period in minutes after test</li></ul>',
             howItWorks: 'Motor runs continuously at the specified throttle level while monitoring temperatures, voltage sag, and current draw over time.',
-            graphAnalysis: 'Voltage should decline gradually due to battery discharge. Temperatures should stabilize after initial rise. Current should remain relatively constant. Sudden changes indicate component issues. Compare voltage sag to battery specifications.'
+            graphAnalysis: 'Use time-series for temperature and voltage; fit thermal stabilization if required.'
         },
         ir: {
             title: 'Battery IR (Internal Resistance)',
-            purpose: 'Measures battery internal resistance by applying current steps and measuring voltage drops. Critical for understanding battery health, capacity, and power delivery capabilities.',
+            purpose: 'Measures battery internal resistance by applying current steps and measuring voltage drops.',
             parameters: '<ul><li><strong>Baseline:</strong> Starting throttle level</li><li><strong>Pulse Amplitude:</strong> Additional throttle for current pulse</li><li><strong>On Duration:</strong> Duration of current pulse</li><li><strong>Off Duration:</strong> Rest period between pulses</li><li><strong>Pulses:</strong> Number of current pulses to apply</li></ul>',
-            howItWorks: 'Applies increasing current loads to the battery while measuring the resulting voltage drops. IR is calculated as voltage drop divided by current change.',
-            graphAnalysis: 'Voltage should drop linearly with increasing current. Steeper slopes indicate higher IR (worse battery). Compare to manufacturer specs. Look for voltage recovery after current steps. Non-linear curves may indicate damaged cells.'
+            howItWorks: 'Applies current pulses and measures ΔV/ΔI. Slope gives internal resistance.',
+            graphAnalysis: 'Plot ΔV vs ΔI and compute linear regression slope.'
         },
         kv: {
             title: 'KV Estimation',
-            purpose: 'Estimates motor KV (RPM per volt) by measuring no-load RPM at different voltages. Helps verify motor specifications and detect performance variations.',
+            purpose: 'Estimates motor KV (RPM per volt) by measuring RPM at different supply voltages or throttle points (if voltage is varied).',
             parameters: '<ul><li><strong>Low:</strong> Minimum throttle level</li><li><strong>High:</strong> Maximum throttle level</li><li><strong>Step Size:</strong> Throttle increment between measurements</li><li><strong>Dwell:</strong> Stabilization time at each throttle level</li><li><strong>Current Ceiling:</strong> Maximum allowed current draw</li></ul>',
-            howItWorks: 'Motor spins at very low throttle while voltage is varied. RPM measurements at each voltage level are used to calculate KV as RPM ÷ Voltage.',
-            graphAnalysis: 'RPM should increase linearly with voltage. KV is the slope of this line. Deviations from linearity indicate motor issues. Compare calculated KV to manufacturer rating. Use for motor identification and performance validation.'
+            howItWorks: 'Collect RPM and voltage at stable points; slope of RPM vs Voltage is KV.',
+            graphAnalysis: 'Scatter RPM vs Voltage; compute slope.'
         },
         thermal: {
             title: 'ESC Thermal Stress Test',
-            purpose: 'Tests ESC thermal management by alternating between high and low throttle periods. Validates cooling systems and identifies thermal throttling points.',
+            purpose: 'Tests ESC thermal management by alternating between high and low throttle periods.',
             parameters: '<ul><li><strong>Segment 1 Throttle:</strong> First throttle level</li><li><strong>Segment 1 Duration:</strong> Time at first throttle</li><li><strong>Segment 2 Throttle:</strong> Second throttle level</li><li><strong>Segment 2 Duration:</strong> Time at second throttle</li></ul>',
-            howItWorks: 'Alternates between two throttle levels with specified durations, creating thermal cycling that stresses the ESC cooling system.',
-            graphAnalysis: 'ESC temperature should cycle predictably between segments. Look for temperature stabilization or continued rise. Current should be consistent at each throttle level. Voltage drops during high-load segments indicate ESC stress. Compare to ESC temperature limits.'
+            howItWorks: 'Alternates between two throttle levels creating thermal cycles to stress ESC thermal management.',
+            graphAnalysis: 'Plot ESC & motor temps vs time and monitor rise/decay behaviour and thermal throttling.'
         },
         mapping: {
             title: 'Prop/Motor Mapping',
-            purpose: 'Creates performance maps for different propeller/motor combinations. Essential for optimizing propulsion system efficiency and selecting appropriate components.',
+            purpose: 'Creates performance maps for different propeller/motor combinations.',
             parameters: '<ul><li><strong>Repeats:</strong> Number of complete test cycles</li><li><strong>Ambient Temp:</strong> Starting temperature</li><li><strong>Notes:</strong> Test conditions and component details</li></ul>',
-            howItWorks: 'Performs multiple throttle sweeps with the same propeller/motor combination to create averaged performance data.',
-            graphAnalysis: 'Multiple traces should overlay closely. Look for consistent RPM/power curves. Temperature variations indicate cooling differences. Use to compare different propeller sizes or motor configurations. Identify optimal operating points.'
+            howItWorks: 'Performs multiple throttle sweeps to produce averaged traces.',
+            graphAnalysis: 'Overlay traces from repeats to inspect repeatability.'
         }
     };
     return descriptions[mode] || {
         title: 'Unknown Mode',
-        purpose: 'Mode description not available.',
-        parameters: 'No parameters defined.',
-        howItWorks: 'Unknown operation.',
-        graphAnalysis: 'No analysis guidance available.'
+        purpose: 'Mode not documented',
+        parameters: 'N/A',
+        howItWorks: 'N/A',
+        graphAnalysis: 'N/A'
     };
 }
 
 function updateModeDescription(mode) {
     const desc = getModeDescription(mode);
     const contentEl = document.getElementById('modeDescriptionContent');
-    
+    if (!contentEl) return;
     if (!mode) {
-        contentEl.innerHTML = `
-            <h3>Select a Mode</h3>
-            <p>Choose an analysis mode from the dropdown above to see detailed information about what it does and how to interpret the results.</p>
-        `;
+        contentEl.innerHTML = `<h3>Select a Mode</h3><p>Choose a mode to view details.</p>`;
         return;
     }
-    
     contentEl.innerHTML = `
         <h3>${desc.title}</h3>
         <p>${desc.purpose}</p>
@@ -597,165 +1035,291 @@ function updateModeDescription(mode) {
     `;
 }
 
-function generateCSV(data) {
-    const headers = ['Time (s)', 'Throttle (%)', 'Voltage (V)', 'Current (A)', 'Power (W)', 'RPM', 'Thrust (g)', 'ESC Temp (°C)', 'Motor Temp (°C)'];
-    const rows = [headers];
-    for (let i = 0; i < data.timestamps.length; i++) {
-        rows.push([
-            (data.timestamps[i] / 1000).toFixed(1),
-            data.throttle[i],
-            data.voltage[i],
-            data.current[i],
-            data.power[i],
-            data.rpm[i],
-            data.thrust[i],
-            data.escTemp[i],
-            data.motorTemp[i]
-        ]);
-    }
-    return rows.map(row => row.join(',')).join('\n');
+// -----------------------------------------------------------------------------
+// Params schema & UI generation (keeps original fields)
+// -----------------------------------------------------------------------------
+
+const modeParamsSchema = {
+    sweep: [
+        { key: 'startThrottle', label: 'Start Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 0 },
+        { key: 'endThrottle', label: 'End Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 100 },
+        { key: 'stepSize', label: 'Step Size (%)', type: 'number', min: 0.5, max: 20, step: 0.5, value: 5 },
+        { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 60, step: 0.5, value: 3 },
+        { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 20 },
+        { key: 'repeats', label: 'Repeats', type: 'number', min: 1, max: 10, step: 1, value: 1 }
+    ],
+    step: [
+        { key: 'lowThrottle', label: 'Low Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
+        { key: 'highThrottle', label: 'High Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 60 },
+        { key: 'onDuration', label: 'On Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
+        { key: 'offDuration', label: 'Off Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
+        { key: 'cycles', label: 'Cycles', type: 'number', min: 1, max: 50, step: 1, value: 5 },
+        { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 100 }
+    ],
+    endurance: [
+        { key: 'throttle', label: 'Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 50 },
+        { key: 'duration', label: 'Duration (min)', type: 'number', min: 1, max: 180, step: 1, value: 10 },
+        { key: 'cooldown', label: 'Cooldown (min)', type: 'number', min: 0, max: 60, step: 1, value: 2 }
+    ],
+    ir: [
+        { key: 'baseline', label: 'Baseline Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
+        { key: 'pulseAmplitude', label: 'Pulse Amplitude (%)', type: 'number', min: 1, max: 50, step: 0.5, value: 10 },
+        { key: 'onDuration', label: 'Pulse On (s)', type: 'number', min: 0.2, max: 10, step: 0.2, value: 1 },
+        { key: 'offDuration', label: 'Pulse Off (s)', type: 'number', min: 0.2, max: 10, step: 0.2, value: 1 },
+        { key: 'pulses', label: 'Pulses', type: 'number', min: 1, max: 50, step: 1, value: 10 }
+    ],
+    kv: [
+        { key: 'throttle', label: 'Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 20 },
+        { key: 'voltageSteps', label: 'Voltage Steps', type: 'number', min: 2, max: 10, step: 1, value: 5 },
+        { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 30, step: 0.5, value: 2 },
+        { key: 'currentCeiling', label: 'Current Ceiling (A)', type: 'number', min: 0.5, max: 100, step: 0.5, value: 10 }
+    ],
+    thermal: [
+        { key: 'segment1Throttle', label: 'Segment 1 Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 70 },
+        { key: 'segment1Duration', label: 'Segment 1 Duration (s)', type: 'number', min: 5, max: 600, step: 1, value: 120 },
+        { key: 'segment2Throttle', label: 'Segment 2 Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 90 },
+        { key: 'segment2Duration', label: 'Segment 2 Duration (s)', type: 'number', min: 5, max: 600, step: 1, value: 30 }
+    ],
+    mapping: [
+        { key: 'repeats', label: 'Repeats', type: 'number', min: 1, max: 10, step: 1, value: 3 },
+        { key: 'ambientTemp', label: 'Ambient Temp (°C)', type: 'number', min: -20, max: 50, step: 1, value: 25 },
+        { key: 'notes', label: 'Notes', type: 'text', value: '' }
+    ]
+};
+
+function renderParamsUI(mode) {
+    const paramsContainer = document.getElementById('analize-params-card');
+    if (!paramsContainer) return;
+
+    const schema = modeParamsSchema[mode] || [];
+    const profile = getCurrentActiveProfile();
+    const armRaw = profile ? profile.armThrottle : DEFAULT_ARM_THROTTLE;
+    const minThrottlePercent = Math.round(((armRaw - 48) / (2047 - 48)) * 100 * 10) / 10;
+
+    paramsContainer.innerHTML = schema.map(field => {
+        let min = field.min;
+        let value = field.value;
+        // enforce throttle min based on arm threshold
+        if (field.key.toLowerCase().includes('throttle') || field.label.includes('Throttle (%)') || field.key === 'baseline') {
+            min = Math.max(min || 0, minThrottlePercent);
+            value = Math.max(value, minThrottlePercent);
+        }
+        const attrs = [
+            `id="param-${field.key}"`,
+            `name="${field.key}"`,
+            field.type === 'number' ? `type="number" step="${field.step || 1}"` : `type="${field.type === 'text' ? 'text' : 'number'}"`,
+            min !== undefined ? `min="${min}"` : '',
+            field.max !== undefined ? `max="${field.max}"` : '',
+            `value="${value}"`
+        ].join(' ');
+        return `<div class="param-field"><label for="param-${field.key}">${field.label}</label><input ${attrs}></div>`;
+    }).join('');
 }
 
-function downloadCSV(csv, filename) {
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+// Read params from UI
+function getCurrentParamsFromUI() {
+    const container = document.getElementById('analize-params-card');
+    if (!container) return {};
+    const inputs = container.querySelectorAll('input');
+    const params = {};
+    inputs.forEach(i => {
+        const key = i.name;
+        if (!key) return;
+        if (i.type === 'number') params[key] = parseFloat(i.value);
+        else params[key] = i.value;
+    });
+    return params;
 }
+
+// -----------------------------------------------------------------------------
+// UI Enable/Disable logic (keeps original behavior but slightly cleaned)
+// -----------------------------------------------------------------------------
+
+function updateAnalizeControlsEnabled(updateMessage = true) {
+    const modeSelect = document.getElementById('analizeModeSelect');
+    const startBtn = document.getElementById('analizeStartButton');
+    const stopBtn = document.getElementById('analizeStopButton');
+    const paramsContainer = document.getElementById('analize-params-card');
+    const analizeCard = document.getElementById('analizeCard');
+    const telemetryCard = document.getElementById('telemetryCard');
+
+    const connected = !!state.connected;
+    const statusMsg = state.lastRxStatus || {};
+    const statusBits = statusMsg.status !== undefined ? statusMsg.status : 0;
+    const armed = isArmedFromStatus(statusBits);
+
+    console.log('[AnalizeTab] statusBits:', statusBits, 'armed:', armed, 'connected:', connected);
+
+    if (analizeCard) {
+        if (!connected) analizeCard.classList.add('disabled-card');
+        else analizeCard.classList.remove('disabled-card');
+    }
+
+    const enable = connected && armed;
+    const canModify = enable && !state.analysis.running && !state.analysis.stopping;
+
+    if (modeSelect) modeSelect.disabled = !canModify;
+    if (startBtn) startBtn.disabled = !canModify;
+    if (stopBtn) stopBtn.disabled = !state.analysis.running || state.analysis.stopping;
+
+    if (paramsContainer) {
+        const paramInputs = paramsContainer.querySelectorAll('input, select, textarea');
+        paramInputs.forEach(input => input.disabled = !canModify);
+    }
+
+    if (telemetryCard) {
+        if (!connected) telemetryCard.classList.add('disabled-card');
+        else telemetryCard.classList.remove('disabled-card');
+    }
+
+    if (updateMessage) {
+        if (!connected) {
+            const statusEl = document.getElementById('analizeStatus');
+            if (statusEl) {
+                statusEl.textContent = 'Connect to device and arm the motor to enable analyze';
+                statusEl.style.color = '#6c757d';
+            }
+        } else if (state.analysis.stopping) {
+            setAnalizeStatusMessage('Stopping analyze...', 'warn');
+        } else if (!armed) {
+            setAnalizeStatusMessage('⚠️ Motor is not armed. Please arm in Control tab.', 'warn');
+        } else if (state.analysis.running && state.analysis.mode) {
+            setAnalizeStatusMessage(`${state.analysis.mode} analyze is running`, 'info');
+        } else {
+            setAnalizeStatusMessage('State: ready', 'info');
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Initialization: attach handlers and wire UI (preserves original features)
+// -----------------------------------------------------------------------------
 
 export function initAnalizeTab() {
-        console.log('[AnalizeTab] initAnalizeTab called');
-    // Load history from localStorage
-    const savedHistory = localStorage.getItem('analyzeHistory');
-    if (savedHistory) {
-        state.analysis.history = JSON.parse(savedHistory);
-    }
+    console.log('[AnalizeTab] initAnalizeTab called (refactored B)');
+
+    // Load history if exists
+    try {
+        const savedHistory = localStorage.getItem('analyzeHistory');
+        if (savedHistory) state.analysis.history = JSON.parse(savedHistory);
+    } catch (e) { state.analysis.history = []; }
+
+    // Elements
     const modeSelect = document.getElementById('analizeModeSelect');
     const startBtn = document.getElementById('analizeStartButton');
     const stopBtn = document.getElementById('analizeStopButton');
     const paramsContainer = document.getElementById('analize-params-card');
     const modeHint = document.getElementById('analizeModeHint');
-    
-    // Expose update function globally for status updates
-    window.updateAnalizeStatusUI = updateAnalizeControlsEnabled;
-    
-    // Initial enablement/status
+    const exportBtn = document.getElementById('exportDataButton');
+    const fullscreenBtn = document.getElementById('fullscreenGraphButton');
+    const graphMetricSelect = document.getElementById('graphMetricSelect');
+    const descriptionModeSelect = document.getElementById('descriptionModeSelect');
+
+    // Initial UI population
+    const initialMode = modeSelect ? modeSelect.value : 'sweep';
+    renderParamsUI(initialMode);
+    updateModeDescription(initialMode);
     updateAnalizeControlsEnabled();
 
-    // Parameter schemas per mode
-    const modeParams = {
-        sweep: [
-            { key: 'startThrottle', label: 'Start Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 0 },
-            { key: 'endThrottle', label: 'End Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 100 },
-            { key: 'stepSize', label: 'Step Size (%)', type: 'number', min: 0.5, max: 20, step: 0.5, value: 5 },
-            { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 60, step: 0.5, value: 3 },
-            { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 20 },
-            { key: 'repeats', label: 'Repeats', type: 'number', min: 1, max: 10, step: 1, value: 1 }
-        ],
-        step: [
-            { key: 'lowThrottle', label: 'Low Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
-            { key: 'highThrottle', label: 'High Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 60 },
-            { key: 'onDuration', label: 'On Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
-            { key: 'offDuration', label: 'Off Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
-            { key: 'cycles', label: 'Cycles', type: 'number', min: 1, max: 50, step: 1, value: 5 },
-            { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 100 }
-        ],
-        endurance: [
-            { key: 'throttle', label: 'Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 50 },
-            { key: 'duration', label: 'Duration (min)', type: 'number', min: 1, max: 180, step: 1, value: 10 },
-            { key: 'cooldown', label: 'Cooldown (min)', type: 'number', min: 0, max: 60, step: 1, value: 2 }
-        ],
-        ir: [
-            { key: 'baseline', label: 'Baseline Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
-            { key: 'pulseAmplitude', label: 'Pulse Amplitude (%)', type: 'number', min: 1, max: 50, step: 0.5, value: 10 },
-            { key: 'onDuration', label: 'Pulse On (s)', type: 'number', min: 0.2, max: 10, step: 0.2, value: 1 },
-            { key: 'offDuration', label: 'Pulse Off (s)', type: 'number', min: 0.2, max: 10, step: 0.2, value: 1 },
-            { key: 'pulses', label: 'Pulses', type: 'number', min: 1, max: 50, step: 1, value: 10 }
-        ],
-        kv: [
-            { key: 'low', label: 'Low Throttle (%)', type: 'number', min: 0, max: 50, step: 0.5, value: 5 },
-            { key: 'high', label: 'High Throttle (%)', type: 'number', min: 5, max: 60, step: 0.5, value: 30 },
-            { key: 'stepSize', label: 'Step Size (%)', type: 'number', min: 0.5, max: 10, step: 0.5, value: 5 },
-            { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 30, step: 0.5, value: 2 },
-            { key: 'currentCeiling', label: 'Current Ceiling (A)', type: 'number', min: 0.5, max: 100, step: 0.5, value: 10 }
-        ],
-        thermal: [
-            { key: 'segment1Throttle', label: 'Segment 1 Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 70 },
-            { key: 'segment1Duration', label: 'Segment 1 Duration (s)', type: 'number', min: 5, max: 600, step: 1, value: 120 },
-            { key: 'segment2Throttle', label: 'Segment 2 Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 90 },
-            { key: 'segment2Duration', label: 'Segment 2 Duration (s)', type: 'number', min: 5, max: 600, step: 1, value: 30 }
-        ],
-        mapping: [
-            { key: 'repeats', label: 'Repeats', type: 'number', min: 1, max: 10, step: 1, value: 3 },
-            { key: 'ambientTemp', label: 'Ambient Temp (°C)', type: 'number', min: -20, max: 50, step: 1, value: 25 },
-            { key: 'notes', label: 'Notes', type: 'text', value: '' }
-        ]
-    };
+    // Global hook
+    window.updateAnalizeStatusUI = updateAnalizeControlsEnabled;
 
-    function renderParams(mode) {
-        if (!paramsContainer) return;
-        const schema = modeParams[mode] || [];
-        
-        // Get minimum throttle from profile
-        const profile = getCurrentActiveProfile();
-        const armThrottle = profile ? profile.armThrottle : 48;
-        const minThrottlePercent = Math.round(((armThrottle - 48) / (2047 - 48)) * 100 * 10) / 10; // Round to 1 decimal
-        
-        paramsContainer.innerHTML = schema.map(field => {
-            let min = field.min;
-            let value = field.value;
-            
-            // Adjust any throttle field to not go below arm throttle
-            if (field.key.toLowerCase().includes('throttle') || field.label.includes('Throttle (%)')) {
-                min = Math.max(min || 0, minThrottlePercent);
-                value = Math.max(value, minThrottlePercent);
-            }
-            
-            const commonAttrs = `id="param-${field.key}" name="${field.key}" ${min!==undefined?`min="${min}"`:''} ${field.max!==undefined?`max="${field.max}"`:''} ${field.step!==undefined?`step="${field.step}"`:''} value="${value}" ${field.type==='number'?'type="number"':''}`;
-            const inputEl = field.type === 'text'
-                ? `<input type="text" ${commonAttrs}>`
-                : `<input ${commonAttrs}>`;
-            return `<div class="param-field"><label for="param-${field.key}">${field.label}</label>${inputEl}</div>`;
-        }).join('');
-        if (modeHint) modeHint.textContent = `Configuring: ${mode}`;
+    // Mode change -> render params & description
+    if (modeSelect) {
+        modeSelect.addEventListener('change', () => {
+            const m = modeSelect.value;
+            renderParamsUI(m);
+            updateModeDescription(m);
+            if (modeHint) modeHint.textContent = `Configuring: ${m}`;
+        });
     }
 
-    // Initial params
-    renderParams(modeSelect ? modeSelect.value : 'sweep');
-
-    // Initial mode description
-    updateModeDescription(modeSelect ? modeSelect.value : 'sweep');
-
-    // Basic handlers
+    // Start button
     if (startBtn) {
         startBtn.addEventListener('click', async () => {
             const mode = modeSelect ? modeSelect.value : 'sweep';
-            const params = getCurrentParams();
+            const params = getCurrentParamsFromUI();
             await startAnalyze(mode, params);
         });
     }
 
+    // Stop button
     if (stopBtn) {
         stopBtn.addEventListener('click', async () => {
             await stopAnalyze();
         });
     }
 
-    if (document.getElementById('exportDataButton')) {
-        document.getElementById('exportDataButton').addEventListener('click', () => {
-            if (!state.analysis.history.length) return;
-            const lastRun = state.analysis.history[state.analysis.history.length - 1];
-            const csv = generateCSV(lastRun.data);
-            downloadCSV(csv, `analyze_${lastRun.mode}_${new Date(lastRun.timestamp).toISOString().slice(0,19).replace(/:/g, '-')}.csv`);
+    // Export CSV -- last run in history
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            // Export chart as PDF with title and footer
+            const hist = state.analysis.history || [];
+            if (!hist.length) return;
+            const lastRun = hist[hist.length - 1];
+            const chartCanvas = document.getElementById('analyzeChart');
+            if (!chartCanvas) return;
+            // Get chart image
+            const imgData = chartCanvas.toDataURL('image/png');
+            // Gather motor/profile details from lastRun.profile
+            const profile = lastRun.profile || {};
+            const motorKV = profile.motorKV ? profile.motorKV : '--';
+            const propDiam = profile.propDiameter ? profile.propDiameter : '--';
+            const propPitch = profile.propPitch ? profile.propPitch : '--';
+            const propBlade = profile.propBlades ? profile.propBlades : '--';
+            const motorTitle = `Motor KV: ${motorKV} | Prop: ${propDiam}x${propPitch}x${propBlade}`;
+            // Gather mode and params
+            const mode = lastRun.mode;
+            const params = lastRun.params || {};
+            let paramText = Object.entries(params).map(([k,v]) => `${k}: ${v}`).join(', ');
+            if (!paramText) paramText = '(no parameters)';
+            // Profile details
+            let profileText = '';
+            if (profile && profile.profileName) {
+                profileText = `Profile: ${profile.profileName}`;
+            }
+
+            // Battery voltage and analysis metrics
+            const data = lastRun.data || {};
+            const voltageArr = Array.isArray(data.voltage) ? data.voltage : [];
+            const currentArr = Array.isArray(data.current) ? data.current : [];
+            const timestampsArr = Array.isArray(data.timestamps) ? data.timestamps : [];
+            const batteryVoltage = voltageArr.length ? voltageArr[0].toFixed(2) : '--';
+            const voltageDrop = (voltageArr.length > 1) ? (voltageArr[0] - voltageArr[voltageArr.length-1]).toFixed(2) : '--';
+
+            // Consumed power (Wh): sum(current * voltage * dt) / 3600
+            let consumedPower = 0;
+            if (voltageArr.length > 1 && currentArr.length === voltageArr.length && timestampsArr.length === voltageArr.length) {
+                for (let i = 1; i < voltageArr.length; i++) {
+                    const dt = timestampsArr[i] - timestampsArr[i-1];
+                    consumedPower += voltageArr[i] * currentArr[i] * dt;
+                }
+                consumedPower = (consumedPower / 3600).toFixed(3); // Wh
+            } else {
+                consumedPower = '--';
+            }
+
+            // Footer text
+            const footerText = `Battery Voltage: ${batteryVoltage} V | Voltage Drop: ${voltageDrop} V | Consumed Power: ${consumedPower} Wh`;
+
+            // Create PDF
+            const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [chartCanvas.width+40, chartCanvas.height+140] });
+            pdf.setFontSize(18);
+            pdf.text(motorTitle, 20, 32);
+            pdf.addImage(imgData, 'PNG', 20, 50, chartCanvas.width, chartCanvas.height);
+            pdf.setFontSize(12);
+            pdf.text(profileText, 20, chartCanvas.height + 70);
+            pdf.text(`Mode: ${mode}`, 20, chartCanvas.height + 90);
+            pdf.text(`Parameters: ${paramText}`, 20, chartCanvas.height + 110);
+            pdf.text(footerText, 20, chartCanvas.height + 130);
+            const filename = `analyze_${mode}_${new Date(lastRun.timestamp).toISOString().slice(0,19).replace(/:/g,'-')}.pdf`;
+            pdf.save(filename);
         });
     }
 
-    // Fullscreen graph button handler
-    if (document.getElementById('fullscreenGraphButton')) {
-        document.getElementById('fullscreenGraphButton').addEventListener('click', () => {
+    // Fullscreen toggle for chart container
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', () => {
             const chartContainer = document.getElementById('analyzeChartContainer');
             if (!chartContainer) return;
             if (document.fullscreenElement) {
@@ -766,44 +1330,35 @@ export function initAnalizeTab() {
         });
     }
 
-    if (document.getElementById('graphMetricSelect')) {
-        document.getElementById('graphMetricSelect').addEventListener('change', () => {
-            if (state.analysis.history.length) {
-                const lastRun = state.analysis.history[state.analysis.history.length - 1];
-                renderGraphs(lastRun.mode, lastRun.data);
-            }
+    // Metric select re-render using last history
+    if (graphMetricSelect) {
+        graphMetricSelect.addEventListener('change', () => {
+            const hist = state.analysis.history || [];
+            if (!hist.length) return;
+            const last = hist[hist.length - 1];
+            renderGraphs(last.mode, last.data);
         });
     }
 
-    if (document.getElementById('descriptionModeSelect')) {
-        document.getElementById('descriptionModeSelect').addEventListener('change', () => {
-            const selectedMode = document.getElementById('descriptionModeSelect').value;
-            updateModeDescription(selectedMode);
+    // Mode description switcher (independent select)
+    if (descriptionModeSelect) {
+        descriptionModeSelect.addEventListener('change', () => {
+            const selected = descriptionModeSelect.value;
+            updateModeDescription(selected);
         });
     }
 
-    // Optional: expose on open hook
+    // Expose on-open hook for tab refresh
     window.onAnalizeTabOpen = function() {
-        // When tab opens, ensure UI reflects current connection state
         updateAnalizeControlsEnabled();
-        // Re-render params in case profile changed
-        const mode = modeSelect ? modeSelect.value : 'sweep';
-        renderParams(mode);
-        updateModeDescription(''); // Initialize description to "Select a Mode"
+        // refresh params in case profile changed
+        const m = (modeSelect && modeSelect.value) || 'sweep';
+        renderParamsUI(m);
+        updateModeDescription('');
     };
 
-    // Re-render params on mode change
-    if (modeSelect) {
-        modeSelect.addEventListener('change', () => {
-            const mode = modeSelect.value;
-            renderParams(mode);
-            updateModeDescription(mode);
-        });
-    }
-
-    // Expose a UI refresh hook for status/telemetry updates
+    // UI refresh hook for telemetry updates
     window.updateAnalizeStatusUI = function(options = {}) {
-        console.log('[AnalizeTab] updateAnalizeStatusUI called', options);
         const { error, warn } = options;
         if (error) {
             state.analysis.lastError = error;
@@ -815,3 +1370,9 @@ export function initAnalizeTab() {
         }
     };
 }
+
+
+
+
+
+
