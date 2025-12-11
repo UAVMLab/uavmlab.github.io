@@ -1675,5 +1675,8 @@ footer {
     }
     #graphsCard #exportDataButton {
         padding: 0.35rem 0.5rem;
+        min-width: 70px;
+        max-width: 100px;
+        width: auto;
     }
 }
