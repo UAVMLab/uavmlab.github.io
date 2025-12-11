@@ -416,43 +416,73 @@ function renderGraphs(mode, data) {
     if (!data || !data.timestamps.length) return;
     const ctx = document.getElementById('analyzeChart').getContext('2d');
     if (chartInstance) chartInstance.destroy();
-    
+
     // Apply smoothing to noisy metrics
     const smoothedData = { ...data };
     smoothedData.voltage = smoothArray(data.voltage, 3);
     smoothedData.current = smoothArray(data.current, 3);
     smoothedData.escTemp = smoothArray(data.escTemp, 3);
     smoothedData.motorTemp = smoothArray(data.motorTemp, 10);
-    
-    const labels = data.timestamps.map(t => (t / 1000).toFixed(1) + 's');
+
+    // Prepare scatter data for selected metric
     const metric = document.getElementById('graphMetricSelect').value;
-    const datasets = [];
-    
-    datasets.push({
-        label: 'Throttle (%)',
-        data: smoothedData.throttle,
-        borderColor: 'blue',
-        backgroundColor: 'rgba(0,0,255,0.1)',
-        yAxisID: 'y'
-    });
-    datasets.push({
-        label: `${metric} (${getUnit(metric)})`,
-        data: smoothedData[metric],
-        borderColor: 'red',
-        backgroundColor: 'rgba(255,0,0,0.1)',
-        yAxisID: 'y1'
-    });
-    
+    // Limit to 5000 points if needed
+    const maxPoints = 5000;
+    const pointCount = Math.min(smoothedData[metric].length, maxPoints);
+    const scatterData = Array.from({ length: pointCount }, (_, i) => ({
+        x: data.throttle[i],
+        y: smoothedData[metric][i]
+    }));
+
     chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: { labels, datasets },
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: `${metric} vs Throttle`,
+                    data: scatterData,
+                    borderColor: 'red',
+                    backgroundColor: 'rgba(255,0,0,0.1)',
+                    pointRadius: 1,
+                    pointHoverRadius: 2,
+                    showLine: false,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
         options: {
             responsive: true,
             scales: {
-                y: { type: 'linear', position: 'left', title: { display: true, text: 'Throttle (%)' } },
-                y1: { type: 'linear', position: 'right', title: { display: true, text: `${metric} (${getUnit(metric)})` }, grid: { drawOnChartArea: false } }
+                x: {
+                    type: 'linear',
+                    position: 'bottom',
+                    title: { display: true, text: 'Throttle (%)' }
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: `${metric} (${getUnit(metric)})` },
+                    grid: { drawOnChartArea: true }
+                }
             },
-            plugins: { zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true } }, pan: { enabled: true } } }
+            plugins: {
+                zoom: {
+                    zoom: {
+                        wheel: { enabled: true },
+                        pinch: { enabled: true },
+                        drag: { enabled: true },
+                        mode: 'xy',
+                        overScaleMode: 'xy',
+                        onZoomComplete: function({chart}) { chart.update('none'); }
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                        overScaleMode: 'xy',
+                        onPanComplete: function({chart}) { chart.update('none'); }
+                    }
+                }
+            }
         }
     });
 }

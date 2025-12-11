@@ -1372,11 +1372,6 @@ footer {
         flex: 1;
         min-width: 0;
     }
-
-    #tab-control label.inline-field #throttleValue {
-        font-size: 0.75rem;
-        min-width: 40px;
-    }
 }
 
 /* Medium Mobile to Small Tablet */
@@ -1638,5 +1633,18 @@ footer {
     body {
         background: #0d1117;
         color: #f0f6fc;
+    }
+}
+
+/* Mobile font size for charts and mode description */
+@media (max-width: 600px) {
+    #modeDescriptionCard h3,
+    #modeDescriptionCard h4,
+    #modeDescriptionCard p,
+    #modeDescriptionCard ul {
+        font-size: 0.65rem !important;
+    }
+    .chartjs-render-monitor {
+        font-size: 0.65rem !important;
     }
 }
