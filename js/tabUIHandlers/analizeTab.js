@@ -424,32 +424,28 @@ function renderGraphs(mode, data) {
     smoothedData.escTemp = smoothArray(data.escTemp, 3);
     smoothedData.motorTemp = smoothArray(data.motorTemp, 10);
 
-    // Prepare scatter data for selected metric
+    // Prepare line data for selected metric
     const metric = document.getElementById('graphMetricSelect').value;
-    // Limit to 5000 points if needed
     const maxPoints = 5000;
     const pointCount = Math.min(smoothedData[metric].length, maxPoints);
-    const scatterData = Array.from({ length: pointCount }, (_, i) => ({
-        x: data.throttle[i],
-        y: smoothedData[metric][i]
-    }));
-
+    const lineData = {
+        labels: data.throttle.slice(0, pointCount),
+        datasets: [
+            {
+                label: `${metric} vs Throttle`,
+                data: smoothedData[metric].slice(0, pointCount),
+                borderColor: 'red',
+                backgroundColor: 'rgba(255,0,0,0.1)',
+                fill: false,
+                tension: 0.2,
+                pointRadius: 0,
+                yAxisID: 'y1'
+            }
+        ]
+    };
     chartInstance = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-            datasets: [
-                {
-                    label: `${metric} vs Throttle`,
-                    data: scatterData,
-                    borderColor: 'red',
-                    backgroundColor: 'rgba(255,0,0,0.1)',
-                    pointRadius: 1,
-                    pointHoverRadius: 2,
-                    showLine: false,
-                    yAxisID: 'y1'
-                }
-            ]
-        },
+        type: 'line',
+        data: lineData,
         options: {
             responsive: true,
             scales: {
@@ -754,6 +750,19 @@ export function initAnalizeTab() {
             const lastRun = state.analysis.history[state.analysis.history.length - 1];
             const csv = generateCSV(lastRun.data);
             downloadCSV(csv, `analyze_${lastRun.mode}_${new Date(lastRun.timestamp).toISOString().slice(0,19).replace(/:/g, '-')}.csv`);
+        });
+    }
+
+    // Fullscreen graph button handler
+    if (document.getElementById('fullscreenGraphButton')) {
+        document.getElementById('fullscreenGraphButton').addEventListener('click', () => {
+            const chartContainer = document.getElementById('analyzeChartContainer');
+            if (!chartContainer) return;
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                chartContainer.requestFullscreen();
+            }
         });
     }
 
