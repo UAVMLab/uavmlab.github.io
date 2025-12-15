@@ -1,6 +1,6 @@
 // Logs tab module
-import { vibrate } from '../utils/haptics.js';
-import { logFilters, updateLogDisplay } from '../utils/logUtils.js';   
+import { vibrate } from '../../../utils/haptics.js';
+import { logFilters, updateLogDisplay } from '../../../utils/logUtils.js';   
 
 // ==================================================================================== //
 

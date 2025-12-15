@@ -5,10 +5,10 @@
 //
 // Usage: replace original analizeTab.js with this file. Depends on Chart.js and your existing UI elements.
 
-import { state } from '../state.js';
-import { appendLog } from '../utils/logUtils.js';
-import { sendCommand } from '../utils/bluetooth.js';
-import { getCurrentActiveProfile } from './profilesTab.js';
+import { state } from '../../../state.js';
+import { appendLog } from '../../../utils/logUtils.js';
+import { sendCommand } from '../../../utils/bluetooth.js';
+import { getCurrentActiveProfile } from '../profileTab/profilesTab.js';
 
 
 

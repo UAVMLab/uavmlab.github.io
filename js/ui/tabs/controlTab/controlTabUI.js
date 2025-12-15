@@ -1,12 +1,86 @@
 // Control tab module
-import { sendCommand } from '../utils/bluetooth.js';
-import { vibrate, vibratePattern } from '../utils/haptics.js';
-import { appendLog } from '../utils/logUtils.js';
+import { sendCommand } from '../../../utils/bluetooth.js';
+import { vibrate, vibratePattern } from '../../../utils/haptics.js';
+import { appendLog } from '../../../utils/logUtils.js';
+import { state } from '../../../state.js';
+import { getCurrentActiveProfileName } from '../profileTab/profilesTab.js';
 
-import { updateControlsAvailability } from './connectionTab.js';
+// ====================================================================================
 
-// ==================================================================================== //
-
+/**
+ * Updates the availability of control tab elements based on connection and profile status.
+ */
+export function updateControlsAvailability() {
+    const controlElements = document.querySelectorAll('[data-profile-required]');
+    const controlStatus = document.getElementById('controlStatus');
+    const telemetryCard = document.querySelector('#tab-control .card:first-child');
+    
+    const activeProfileName = getCurrentActiveProfileName();
+    const hasActiveProfile = activeProfileName !== null && activeProfileName !== '';
+    
+    console.log('updateControlsAvailability called, connected:', state.connected, 'activeProfileName:', activeProfileName, 'hasActiveProfile:', hasActiveProfile);
+    
+    // Check connection status first
+    if (!state.connected) {
+        // Device not connected - disable all controls
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = true;
+            } else {
+                el.classList.add('disabled');
+                el.style.pointerEvents = 'none';
+                el.style.opacity = '0.5';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = 'Connect to device to enable controls.';
+            controlStatus.style.color = '#6c757d';
+        }
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '0.5';
+        }
+    } else if (!hasActiveProfile) {
+        // Connected but no profile set
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = true;
+            } else {
+                // For DIV elements like slide-to-arm, add disabled class and prevent interaction
+                el.classList.add('disabled');
+                el.style.pointerEvents = 'none';
+                el.style.opacity = '0.5';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = '⚠️ No active profile set. Please select a profile from the Profiles tab.';
+            controlStatus.style.color = '#f39c12';
+        }
+        // Dim telemetry card to indicate it's not active
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '0.5';
+        }
+    } else {
+        // Connected and profile is set - enable controls
+        controlElements.forEach(el => {
+            if (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+                el.disabled = false;
+            } else {
+                // For DIV elements, remove disabled state
+                el.classList.remove('disabled');
+                el.style.pointerEvents = '';
+                el.style.opacity = '';
+            }
+        });
+        if (controlStatus) {
+            controlStatus.textContent = 'Ready to control motor.';
+            controlStatus.style.color = '';
+        }
+        // Restore telemetry card opacity
+        if (telemetryCard) {
+            telemetryCard.style.opacity = '1';
+        }
+    }
+}
 
 // Throttle state for slider
 let throttleSendTimeout = null;

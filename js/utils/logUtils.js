@@ -1,6 +1,6 @@
 // logUtils.js
 // Logging utilities for the UAVMLab web app
-import { MAX_LOG_LINES } from '../constants.js';
+import { MAX_LOG_LINES } from '../config/constants.js';
 import { state } from '../state.js';
 
 // Log buffer and filter state
