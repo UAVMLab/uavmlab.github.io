@@ -539,6 +539,20 @@ const CrosshairPlugin = {
             const touch = evt.touches[0];
             const rect = canvas.getBoundingClientRect();
             const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            // Check if touch is on legend area - if so, don't activate crosshair
+            const legend = chart.legend;
+            if (legend && legend.legendHitBoxes) {
+                for (let hitBox of legend.legendHitBoxes) {
+                    if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
+                        y >= hitBox.top && y <= hitBox.top + hitBox.height) {
+                        // Touch is on legend, don't activate crosshair
+                        return;
+                    }
+                }
+            }
+            
             chart.$crosshair.x = x;
             chart.$crosshair.active = true;
             chart.draw();
