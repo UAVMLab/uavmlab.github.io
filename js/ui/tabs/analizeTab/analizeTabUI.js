@@ -824,7 +824,9 @@ function renderSweepGraphs(data) {
                         font: { size: fontSizes.legend },
                         boxWidth: fontSizes.boxWidth,
                         boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
                     },
                     onClick: function(e, legendItem, legend) {
                         const index = legendItem.datasetIndex;
@@ -872,15 +874,16 @@ function renderSweepGraphs(data) {
             },
             scales: {
                 x: { 
-                    title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.title } },
+                    title: { display: false },
                     ticks: { font: { size: fontSizes.ticks } }
                 },
                 yRPM: { 
                     type: 'linear', 
                     position: 'left', 
-                    title: { display: true, text: 'RPM (×10³)', font: { size: fontSizes.title } },
+                    title: { display: false },
                     ticks: {
                         font: { size: fontSizes.ticks },
+                        color: '#e74c3c',
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
                         }
@@ -889,29 +892,41 @@ function renderSweepGraphs(data) {
                 yThrust: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.title } },
-                    ticks: { font: { size: fontSizes.ticks } },
+                    title: { display: false },
+                    ticks: { 
+                        font: { size: fontSizes.ticks },
+                        color: '#27ae60'
+                    },
                     grid: { drawOnChartArea: false } 
                 },
                 yCurrent: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Current (A)', font: { size: fontSizes.title } },
-                    ticks: { font: { size: fontSizes.ticks } },
+                    title: { display: false },
+                    ticks: { 
+                        font: { size: fontSizes.ticks },
+                        color: '#3498db'
+                    },
                     grid: { drawOnChartArea: false } 
                 },
                 yVoltage: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.title } },
-                    ticks: { font: { size: fontSizes.ticks } },
+                    title: { display: false },
+                    ticks: { 
+                        font: { size: fontSizes.ticks },
+                        color: '#9b59b6'
+                    },
                     grid: { drawOnChartArea: false } 
                 },
                 yEfficiency: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.title } },
-                    ticks: { font: { size: fontSizes.ticks } },
+                    title: { display: false },
+                    ticks: { 
+                        font: { size: fontSizes.ticks },
+                        color: '#e67e22'
+                    },
                     grid: { drawOnChartArea: false } 
                 }
             }
@@ -967,21 +982,22 @@ function renderStepGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: true, text: 'Time (s)' } },
-                yThrottle: { position: 'left', title: { display: true, text: 'Throttle (%)' } },
+                x: { title: { display: false } },
+                yThrottle: { position: 'left', title: { display: false }, ticks: { color: '#f39c12' } },
                 yRPM: { 
                     position: 'right', 
-                    title: { display: true, text: 'RPM (×10³)' }, 
+                    title: { display: false }, 
                     grid: { drawOnChartArea: false },
                     ticks: {
+                        color: '#e74c3c',
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
                         }
                     }
                 },
-                yCurrent: { position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } },
-                yVoltage: { position: 'right', title: { display: true, text: 'Voltage (V)' }, grid: { drawOnChartArea: false } },
-                yEfficiency: { position: 'right', title: { display: true, text: 'Efficiency (kg/W)' }, grid: { drawOnChartArea: false } }
+                yCurrent: { position: 'right', title: { display: false }, ticks: { color: '#3498db' }, grid: { drawOnChartArea: false } },
+                yVoltage: { position: 'right', title: { display: false }, ticks: { color: '#9b59b6' }, grid: { drawOnChartArea: false } },
+                yEfficiency: { position: 'right', title: { display: false }, ticks: { color: '#e67e22' }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -1019,8 +1035,8 @@ function renderEnduranceGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: true, text: 'Time (s)' } },
-                y: { title: { display: true, text: 'Value' } }
+                x: { title: { display: false } },
+                y: { title: { display: false } }
             }
         }
     });
@@ -1107,8 +1123,8 @@ function renderIRGraphs(data) {
                 }
             },
             scales: {
-                x: { title:{ text:'ΔCurrent (A)', display:true }},
-                y: { title:{ text:'ΔVoltage (V)', display:true }}
+                x: { title:{ text:'ΔCurrent (A)', display:false }},
+                y: { title:{ text:'ΔVoltage (V)', display:false }}
             }
         }
     });
@@ -1199,9 +1215,9 @@ function renderKVGraphs(data) {
                 }
             },
             scales: {
-                x: { title:{ text:'Voltage (V)', display:true }},
+                x: { title:{ text:'Voltage (V)', display:false }},
                 y: { 
-                    title:{ text:'RPM (×10³)', display:true },
+                    title:{ text:'RPM (×10³)', display:false },
                     ticks: {
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
@@ -1249,9 +1265,9 @@ function renderThermalGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: true, text: 'Time (s)' } },
-                y: { title: { display: true, text: 'Temperature (°C)' } },
-                yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Throttle (%)' } }
+                x: { title: { display: false } },
+                y: { title: { display: false }, ticks: { color: '#e74c3c' } },
+                yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: false }, ticks: { color: '#3498db' } }
             }
         }
     });
@@ -1303,7 +1319,9 @@ function renderEfficiencyGraphs(data) {
                         font: { size: fontSizes.legend },
                         boxWidth: fontSizes.boxWidth,
                         boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
                     },
                     onClick: function(e, legendItem, legend) {
                         const index = legendItem.datasetIndex;
@@ -1346,28 +1364,32 @@ function renderEfficiencyGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: true, text: 'Throttle (%)' } },
+                x: { title: { display: false } },
                 yEfficiency: { 
                     type: 'linear', 
                     position: 'left', 
-                    title: { display: true, text: 'Efficiency (kg/W)' }
+                    title: { display: false },
+                    ticks: { color: '#e67e22' }
                 },
                 yPower: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Power (W)' }, 
+                    title: { display: false },
+                    ticks: { color: '#e74c3c' },
                     grid: { drawOnChartArea: false } 
                 },
                 yThrust: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'Thrust (kg)' }, 
+                    title: { display: false },
+                    ticks: { color: '#27ae60' },
                     grid: { drawOnChartArea: false } 
                 },
                 yThrustPerRPM: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: true, text: 'g/1000RPM' }, 
+                    title: { display: false },
+                    ticks: { color: '#9b59b6' },
                     grid: { drawOnChartArea: false } 
                 }
             }
