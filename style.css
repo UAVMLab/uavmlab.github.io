@@ -1646,21 +1646,21 @@ footer {
     #modeDescriptionCard h4,
     #modeDescriptionCard p,
     #modeDescriptionCard ul {
-        font-size: 0.65rem !important;
+        font-size: 0.5rem !important;
     }
     
     /* Make ALL chart text much smaller on mobile */
     canvas {
-        font-size: 4px !important;
+        font-size: 3px !important;
     }
     
     .chartjs-render-monitor {
-        font-size: 4px !important;
+        font-size: 3px !important;
     }
     
     /* Override Chart.js default font sizes */
     #graphsCard canvas {
-        --chart-font-size: 4px;
+        --chart-font-size: 3px;
     }
 }
 
@@ -1748,7 +1748,7 @@ footer {
     display: block;
   }
   #graphsCard {
-    padding-left: 0 !important;
+    padding-left: 0.5rem !important;
     padding-right: 0 !important;
   }
   #graphsCard h2 {
@@ -1758,7 +1758,7 @@ footer {
 
 /* Reduce text sizes in analyze graphs card for larger drawing area */
 #graphsCard h2 {
-  font-size: 0.7rem;
+  font-size: 0.5rem;
   margin: 0 0 0.3rem 0;
   padding: 0.2rem 0;
 }
@@ -1766,14 +1766,14 @@ footer {
 #graphsCard .subtext,
 #graphsCard p,
 #graphsCard span {
-  font-size: 0.65rem;
+  font-size: 0.45rem;
 }
 
 #graphsCard select {
-  font-size: 0.7rem;
+  font-size: 0.5rem;
   padding: 0.2rem 0.4rem;
 }
 
 #graphsCard button {
-  font-size: 0.7rem;
+  font-size: 0.5rem;
 }
