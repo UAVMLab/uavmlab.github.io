@@ -743,7 +743,7 @@ Chart.register(CrosshairPlugin);
 function getChartFontSizes() {
     const isMobile = window.innerWidth <= 600;
     return {
-        legend: isMobile ? 8 : 12,
+        legend: isMobile ? 7 : 10,
         title: isMobile ? 9 : 12,
         ticks: isMobile ? 7 : 10,
         tooltip: isMobile ? 8 : 11,
@@ -787,7 +787,7 @@ function renderSweepGraphs(data) {
             responsive: true,
             plugins: { 
                 legend: { 
-                    position: 'top',
+                    position: 'bottom',
                     labels: { 
                         font: { size: fontSizes.legend },
                         boxWidth: fontSizes.boxWidth,
@@ -1266,7 +1266,7 @@ function renderEfficiencyGraphs(data) {
             responsive: true,
             plugins: { 
                 legend: { 
-                    position: 'top',
+                    position: 'bottom',
                     labels: { 
                         font: { size: fontSizes.legend },
                         boxWidth: fontSizes.boxWidth,
