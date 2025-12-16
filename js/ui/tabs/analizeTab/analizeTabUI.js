@@ -556,8 +556,7 @@ const CrosshairPlugin = {
                 for (let hitBox of legend.legendHitBoxes) {
                     if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
                         y >= hitBox.top && y <= hitBox.top + hitBox.height) {
-                        // Touch is on legend, don't activate crosshair
-                        evt.stopPropagation();
+                        // Touch is on legend, don't activate crosshair but allow click to propagate
                         return;
                     }
                 }
