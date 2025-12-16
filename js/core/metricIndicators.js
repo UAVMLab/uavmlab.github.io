@@ -5,8 +5,15 @@
  */
 function getCurrentActiveProfile() {
     if (typeof window.getCurrentActiveProfile === 'function') {
-        return window.getCurrentActiveProfile();
+        const profile = window.getCurrentActiveProfile();
+        if (profile) {
+            console.log('Active profile found:', profile.profileName, profile);
+        } else {
+            console.log('No active profile set');
+        }
+        return profile;
     }
+    console.warn('window.getCurrentActiveProfile is not defined!');
     return null;
 }
 
@@ -35,25 +42,28 @@ function getGradientColor(percentage, inverse = false) {
 
 /**
  * Applies gradient to a parent element
- * @param {string} selector - Parent element selector
+ * @param {string} childSelector - Child element selector (e.g., '#voltageMetric')
  * @param {number} percentage - Percentage for gradient
  * @param {string} color - Color for gradient
  */
-function applyGradient(selector, percentage, color) {
-    const parent = document.querySelector(selector);
-    if (parent) {
-        parent.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+function applyGradient(childSelector, percentage, color) {
+    const child = document.querySelector(childSelector);
+    if (child && child.parentElement) {
+        child.parentElement.style.background = `linear-gradient(to right, ${color} ${percentage}%, transparent ${percentage}%)`;
+        console.log(`Applied gradient to ${childSelector}: ${percentage}% ${color}`);
+    } else {
+        console.warn(`Failed to apply gradient - element not found: ${childSelector}`);
     }
 }
 
 /**
  * Clears gradient from a parent element
- * @param {string} selector - Parent element selector
+ * @param {string} childSelector - Child element selector (e.g., '#voltageMetric')
  */
-function clearGradient(selector) {
-    const parent = document.querySelector(selector);
-    if (parent) {
-        parent.style.background = '';
+function clearGradient(childSelector) {
+    const child = document.querySelector(childSelector);
+    if (child && child.parentElement) {
+        child.parentElement.style.background = '';
     }
 }
 
@@ -62,7 +72,7 @@ function clearGradient(selector) {
 export function updateBatteryIndicator(voltage) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.batteryCellCount || activeProfile.batteryCellCount === 0) {
-        clearGradient('.metric:has(#voltageMetric)');
+        clearGradient('#voltageMetric');
         return;
     }
     
@@ -77,13 +87,13 @@ export function updateBatteryIndicator(voltage) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, false);
-    applyGradient('.metric:has(#voltageMetric)', percentage, color);
+    applyGradient('#voltageMetric', percentage, color);
 }
 
 export function updateBatteryIndicatorAnalize(voltage) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.batteryCellCount || activeProfile.batteryCellCount === 0) {
-        clearGradient('.metric:has(#analizeVoltage)');
+        clearGradient('#analizeVoltage');
         return;
     }
     
@@ -97,7 +107,7 @@ export function updateBatteryIndicatorAnalize(voltage) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, false);
-    applyGradient('.metric:has(#analizeVoltage)', percentage, color);
+    applyGradient('#analizeVoltage', percentage, color);
 }
 
 // ===== RPM INDICATORS =====
@@ -105,7 +115,7 @@ export function updateBatteryIndicatorAnalize(voltage) {
 export function updateRPMIndicator(rpm) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxRPM || activeProfile.maxRPM === 0) {
-        clearGradient('.metric:has(#rpmMetric)');
+        clearGradient('#rpmMetric');
         return;
     }
     
@@ -114,13 +124,13 @@ export function updateRPMIndicator(rpm) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#rpmMetric)', percentage, color);
+    applyGradient('#rpmMetric', percentage, color);
 }
 
 export function updateRPMIndicatorAnalize(rpm) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxRPM || activeProfile.maxRPM === 0) {
-        clearGradient('.metric:has(#analizeRpm)');
+        clearGradient('#analizeRpm');
         return;
     }
     
@@ -129,7 +139,7 @@ export function updateRPMIndicatorAnalize(rpm) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#analizeRpm)', percentage, color);
+    applyGradient('#analizeRpm', percentage, color);
 }
 
 // ===== THRUST INDICATORS =====
@@ -137,7 +147,7 @@ export function updateRPMIndicatorAnalize(rpm) {
 export function updateThrustIndicator(thrust) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxThrust || activeProfile.maxThrust === 0) {
-        clearGradient('.metric:has(#thrustMetric)');
+        clearGradient('#thrustMetric');
         return;
     }
     
@@ -147,13 +157,13 @@ export function updateThrustIndicator(thrust) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#thrustMetric)', percentage, color);
+    applyGradient('#thrustMetric', percentage, color);
 }
 
 export function updateThrustIndicatorAnalize(thrust) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxThrust || activeProfile.maxThrust === 0) {
-        clearGradient('.metric:has(#analizeThrust)');
+        clearGradient('#analizeThrust');
         return;
     }
     
@@ -163,7 +173,7 @@ export function updateThrustIndicatorAnalize(thrust) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#analizeThrust)', percentage, color);
+    applyGradient('#analizeThrust', percentage, color);
 }
 
 // ===== CURRENT INDICATORS =====
@@ -171,7 +181,7 @@ export function updateThrustIndicatorAnalize(thrust) {
 export function updateCurrentIndicator(current) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxCurrent || activeProfile.maxCurrent === 0) {
-        clearGradient('.metric:has(#currentMetric)');
+        clearGradient('#currentMetric');
         return;
     }
     
@@ -180,13 +190,13 @@ export function updateCurrentIndicator(current) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#currentMetric)', percentage, color);
+    applyGradient('#currentMetric', percentage, color);
 }
 
 export function updateCurrentIndicatorAnalize(current) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxCurrent || activeProfile.maxCurrent === 0) {
-        clearGradient('.metric:has(#analizeCurrent)');
+        clearGradient('#analizeCurrent');
         return;
     }
     
@@ -195,7 +205,7 @@ export function updateCurrentIndicatorAnalize(current) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#analizeCurrent)', percentage, color);
+    applyGradient('#analizeCurrent', percentage, color);
 }
 
 // ===== ESC TEMPERATURE INDICATORS =====
@@ -203,7 +213,7 @@ export function updateCurrentIndicatorAnalize(current) {
 export function updateESCTempIndicator(temp) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxESCTemp || activeProfile.maxESCTemp === 0) {
-        clearGradient('.metric:has(#escTempMetric)');
+        clearGradient('#escTempMetric');
         return;
     }
     
@@ -212,13 +222,13 @@ export function updateESCTempIndicator(temp) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#escTempMetric)', percentage, color);
+    applyGradient('#escTempMetric', percentage, color);
 }
 
 export function updateESCTempIndicatorAnalize(temp) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxESCTemp || activeProfile.maxESCTemp === 0) {
-        clearGradient('.metric:has(#analizeEscTemp)');
+        clearGradient('#analizeEscTemp');
         return;
     }
     
@@ -227,7 +237,7 @@ export function updateESCTempIndicatorAnalize(temp) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#analizeEscTemp)', percentage, color);
+    applyGradient('#analizeEscTemp', percentage, color);
 }
 
 // ===== MOTOR TEMPERATURE INDICATORS =====
@@ -235,7 +245,7 @@ export function updateESCTempIndicatorAnalize(temp) {
 export function updateMotorTempIndicator(temp) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxMotorTemp || activeProfile.maxMotorTemp === 0) {
-        clearGradient('.metric:has(#motorTempMetric)');
+        clearGradient('#motorTempMetric');
         return;
     }
     
@@ -244,13 +254,13 @@ export function updateMotorTempIndicator(temp) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#motorTempMetric)', percentage, color);
+    applyGradient('#motorTempMetric', percentage, color);
 }
 
 export function updateMotorTempIndicatorAnalize(temp) {
     const activeProfile = getCurrentActiveProfile();
     if (!activeProfile || !activeProfile.maxMotorTemp || activeProfile.maxMotorTemp === 0) {
-        clearGradient('.metric:has(#analizeMotorTemp)');
+        clearGradient('#analizeMotorTemp');
         return;
     }
     
@@ -259,5 +269,5 @@ export function updateMotorTempIndicatorAnalize(temp) {
     percentage = Math.max(0, Math.min(100, percentage));
     
     const color = getGradientColor(percentage, true);
-    applyGradient('.metric:has(#analizeMotorTemp)', percentage, color);
+    applyGradient('#analizeMotorTemp', percentage, color);
 }

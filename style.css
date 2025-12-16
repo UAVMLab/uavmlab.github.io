@@ -179,6 +179,8 @@ html {
 .card .metric {
     padding: 0.25rem 0.4rem;
     border-radius: 4px;
+    position: relative;
+    overflow: hidden;
 }
 
 .card .metric h3 {
@@ -955,8 +957,10 @@ button.ghost {
     padding: 0.5rem 0.75rem;
     border: 1px solid #30363d;
     border-radius: 8px;
-    background: #0d1117;
+    background: rgba(13, 17, 23, 0.6);
     min-width: 0;
+    position: relative;
+    overflow: hidden;
 }
 
 .metric h3 {
@@ -1739,4 +1743,26 @@ footer {
   #graphsCard h2 {
     padding-left: 0.7rem !important;
   }
+}
+
+/* Reduce text sizes in analyze graphs card for larger drawing area */
+#graphsCard h2 {
+  font-size: 0.7rem;
+  margin: 0 0 0.3rem 0;
+  padding: 0.2rem 0;
+}
+
+#graphsCard .subtext,
+#graphsCard p,
+#graphsCard span {
+  font-size: 0.65rem;
+}
+
+#graphsCard select {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+}
+
+#graphsCard button {
+  font-size: 0.7rem;
 }

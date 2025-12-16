@@ -4,7 +4,7 @@ import { setStatus } from './js/utils/statusUtil.js';
 import { initNavigation } from './js/ui/navigation/navigationBarUI.js';
 
 import { initConnectionTab } from './js/ui/tabs/connectionTab/connectionTabUI.js';
-import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage } from './js/ui/tabs/profileTab/profilesTab.js';
+import { initProfilesTab, updateProfileList, handleProfileMessage, handleCurrentProfileMessage, getCurrentActiveProfile, getCurrentActiveProfileName } from './js/ui/tabs/profileTab/profilesTab.js';
 import { initControlTab, initStatusDotHandlers } from './js/ui/tabs/controlTab/controlTabUI.js';
 import { initResultsTab } from './js/ui/resultsTab.js';
 import { initLogsTab } from './js/ui/tabs/logsTab/logsTabUI.js';
@@ -14,6 +14,8 @@ import { initAnalizeTab } from './js/ui/tabs/analizeTab/analizeTabUI.js';
 window.updateProfileList = updateProfileList;
 window.handleProfileMessage = handleProfileMessage;
 window.handleCurrentProfileMessage = handleCurrentProfileMessage;
+window.getCurrentActiveProfile = getCurrentActiveProfile;
+window.getCurrentActiveProfileName = getCurrentActiveProfileName;
 
 // Initialize all modules
 async function initApp() {

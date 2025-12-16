@@ -87,6 +87,10 @@ async function sendThrottle(percent) {
     try {
         await sendCommand('set_throttle', { value: escValue });
         currentThrottle = percent;
+        // Start data collection on first throttle command
+        if (typeof window._startDataCollection === 'function') {
+            window._startDataCollection();
+        }
     } catch (err) {
         appendLog(`sendThrottle error: ${err.message}`);
     }
@@ -142,23 +146,32 @@ async function startAnalyze(mode, params) {
     showProgress();
     updateProgress(0);
 
-    // data collection loop (200ms sample)
-    const startTime = Date.now();
+    // Start data collection timer - will be triggered after first throttle command
+    let dataCollectionStarted = false;
+    let startTime = null;
     dataInterval = setInterval(() => {
-        if (!state.analysis.running) return;
+        if (!state.analysis.running || !dataCollectionStarted) return;
         const now = (Date.now() - startTime) / 1000.0;
         const tel = state.lastRxData || {};
         const d = state.analysis.data;
         d.timestamps.push(now);
-        d.throttle.push(currentThrottle);
-        d.voltage.push(tel.voltage || 0);
-        d.current.push(tel.current || 0);
-        d.power.push(tel.power || 0);
-        d.rpm.push(tel.rpm || 0);
-        d.thrust.push(tel.thrust || 0);
-        d.escTemp.push(tel.escTemp || 0);
-        d.motorTemp.push(tel.motorTemp || 0);
+        d.throttle.push(parseFloat(currentThrottle.toFixed(2)));
+        d.voltage.push(parseFloat((tel.voltage || 0).toFixed(1)));
+        d.current.push(parseFloat((tel.current || 0).toFixed(1)));
+        d.power.push(parseFloat((tel.power || 0).toFixed(1)));
+        d.rpm.push(Math.round(tel.rpm || 0));
+        d.thrust.push(parseFloat(((tel.thrust || 0) / 1000).toFixed(2)));
+        d.escTemp.push(parseFloat((tel.escTemp || 0).toFixed(1)));
+        d.motorTemp.push(parseFloat((tel.motorTemp || 0).toFixed(1)));
     }, 200);
+
+    // Function to start data collection (called after first throttle command)
+    window._startDataCollection = () => {
+        if (!dataCollectionStarted) {
+            dataCollectionStarted = true;
+            startTime = Date.now();
+        }
+    };
 
     try {
         // dispatch mode function
@@ -170,6 +183,7 @@ async function startAnalyze(mode, params) {
             case 'kv': await runKVEstimation(params); break;
             case 'thermal': await runThermalStress(params); break;
             case 'mapping': await runMappingTest(params); break;
+            case 'efficiency': await runEfficiencyAnalysis(params); break;
             default: throw new Error(`Unknown analyze mode: ${mode}`);
         }
         setAnalizeStatusMessage(`${mode} analyze completed`, 'info');
@@ -406,6 +420,29 @@ async function runMappingTest(params) {
     if (state.analysis.running) updateProgress(100, 'Mapping test completed');
 }
 
+async function runEfficiencyAnalysis(params) {
+    const { startThrottle = 10, endThrottle = 100, stepSize = 5, dwell = 3, rampRate = 20 } = params;
+    const stepsInRepeat = Math.floor((endThrottle - startThrottle) / stepSize) + 1;
+
+    // Ramp to start from 0 (safety)
+    await rampThrottle(0, startThrottle, Math.max(200, (startThrottle / rampRate) * 1000));
+    if (!state.analysis.running) return;
+
+    // Sweep up
+    for (let step = 0; step < stepsInRepeat && state.analysis.running; step++) {
+        const throttle = startThrottle + step * stepSize;
+        updateProgress((step / Math.max(1, stepsInRepeat - 1)) * 100, `${step + 1}/${stepsInRepeat}`);
+        await sendThrottle(throttle);
+        // dwell time while collecting data
+        await new Promise(r => setTimeout(r, dwell * 1000));
+    }
+    if (!state.analysis.running) return;
+
+    // Ramp down to zero
+    await rampThrottle(endThrottle, 0, Math.max(200, (endThrottle / rampRate) * 1000));
+    updateProgress(100, 'Efficiency analysis completed');
+}
+
 // -----------------------------------------------------------------------------
 // Progress UI helpers (assumes #analizeProgress, #progressFill, #progressText exist)
 // -----------------------------------------------------------------------------
@@ -556,8 +593,21 @@ const CrosshairPlugin = {
                         minDist = dist;
                     }
                 });
-                if (closest)
-                    lines.push(`${ds.label}: ${closest.y.toFixed(2)}`);
+                if (closest) {
+                    let displayValue;
+                    if (ds.label === 'RPM') {
+                        displayValue = Math.round(closest.y);
+                    } else if (ds.label && ds.label.includes('Throttle')) {
+                        displayValue = closest.y.toFixed(2);
+                    } else if (ds.label && ds.label.includes('Thrust')) {
+                        displayValue = closest.y.toFixed(2);
+                    } else if (ds.label && ds.label.includes('Efficiency')) {
+                        displayValue = closest.y.toFixed(3);
+                    } else {
+                        displayValue = closest.y.toFixed(1);
+                    }
+                    lines.push(`${ds.label}: ${displayValue}`);
+                }
             } else {
                 // LINE MODE (array)
                 const labels = chart.data.labels;
@@ -566,7 +616,19 @@ const CrosshairPlugin = {
                     // Use nearest index for category scale
                     let idx = Math.round(xValue);
                     idx = Math.max(0, Math.min(idx, data.length - 1));
-                    lines.push(`${ds.label}: ${data[idx].toFixed(2)}`);
+                    let displayValue;
+                    if (ds.label === 'RPM') {
+                        displayValue = Math.round(data[idx]);
+                    } else if (ds.label && ds.label.includes('Throttle')) {
+                        displayValue = data[idx].toFixed(2);
+                    } else if (ds.label && ds.label.includes('Thrust')) {
+                        displayValue = data[idx].toFixed(2);
+                    } else if (ds.label && ds.label.includes('Efficiency')) {
+                        displayValue = data[idx].toFixed(3);
+                    } else {
+                        displayValue = data[idx].toFixed(1);
+                    }
+                    lines.push(`${ds.label}: ${displayValue}`);
                 } else {
                     // Use actual X values for linear/time scale
                     const points = labels.map((x, i) => ({ x: Number(x), y: Number(data[i]) }));
@@ -590,7 +652,19 @@ const CrosshairPlugin = {
                         const t = (xValue - left.x) / (right.x - left.x);
                         yInterp = left.y + (right.y - left.y) * t;
                     }
-                    lines.push(`${ds.label}: ${yInterp.toFixed(2)}`);
+                    let displayValue;
+                    if (ds.label === 'RPM') {
+                        displayValue = Math.round(yInterp);
+                    } else if (ds.label && ds.label.includes('Throttle')) {
+                        displayValue = yInterp.toFixed(2);
+                    } else if (ds.label && ds.label.includes('Thrust')) {
+                        displayValue = yInterp.toFixed(2);
+                    } else if (ds.label && ds.label.includes('Efficiency')) {
+                        displayValue = yInterp.toFixed(3);
+                    } else {
+                        displayValue = yInterp.toFixed(1);
+                    }
+                    lines.push(`${ds.label}: ${displayValue}`);
                 }
             }
         });
@@ -636,25 +710,70 @@ function renderSweepGraphs(data) {
     const rpm = smoothCentered(data.rpm, 3);
     const thrust = smoothCentered(data.thrust, 3);
     const current = smoothCentered(data.current, 3);
+    const voltage = smoothCentered(data.voltage, 3);
+    
+    // Calculate efficiency metrics
+    const powerEfficiency = thrust.map((t, i) => {
+        const power = voltage[i] * current[i];
+        return power > 0 ? t / power : 0; // kg/W (thrust efficiency)
+    });
+    const thrustPerWatt = powerEfficiency; // kg/W
 
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.throttle,
             datasets: [
-                { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 2, yAxisID: 'yRPM' },
-                { label: 'Thrust (g)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 2, yAxisID: 'yThrust' },
-                { label: 'Current (A)', data: current, borderColor: '#3498db', fill: false, pointRadius: 2, yAxisID: 'yCurrent' }
+                { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yRPM' },
+                { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
+                { label: 'Current (A)', data: current, borderColor: '#3498db', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yCurrent' },
+                { label: 'Voltage (V)', data: voltage, borderColor: '#9b59b6', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yVoltage' },
+                { label: 'Efficiency (kg/W)', data: thrustPerWatt, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yEfficiency' }
             ]
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'top' } },
+            plugins: { 
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.dataset.label === 'RPM') {
+                                label += Math.round(context.parsed.y);
+                            } else if (context.dataset.label && context.dataset.label.includes('Throttle')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else if (context.dataset.label && context.dataset.label.includes('Thrust')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else if (context.dataset.label && context.dataset.label.includes('Efficiency')) {
+                                label += context.parsed.y.toFixed(3);
+                            } else {
+                                label += context.parsed.y.toFixed(1);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: { title: { display: true, text: 'Throttle (%)' } },
-                yRPM: { type: 'linear', position: 'left', title: { display: true, text: 'RPM' } },
-                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (g)' }, grid: { drawOnChartArea: false } },
-                yCurrent: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } }
+                yRPM: { 
+                    type: 'linear', 
+                    position: 'left', 
+                    title: { display: true, text: 'RPM (×10³)' },
+                    ticks: {
+                        callback: function(value) {
+                            return (value / 1000).toFixed(1);
+                        }
+                    }
+                },
+                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (kg)' }, grid: { drawOnChartArea: false } },
+                yCurrent: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } },
+                yVoltage: { type: 'linear', position: 'right', title: { display: true, text: 'Voltage (V)' }, grid: { drawOnChartArea: false } },
+                yEfficiency: { type: 'linear', position: 'right', title: { display: true, text: 'Efficiency (kg/W)' }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -663,23 +782,65 @@ function renderSweepGraphs(data) {
 // Step: time vs throttle,RPM,current — time-series with dual axis
 function renderStepGraphs(data) {
     const ctx = resetChartCtx();
+    
+    // Calculate efficiency metrics
+    const thrustPerWatt = data.thrust.map((t, i) => {
+        const power = data.voltage[i] * data.current[i];
+        return power > 0 ? t / power : 0; // kg/W
+    });
+    
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.timestamps,
             datasets: [
-                { label: 'Throttle (%)', data: data.throttle, borderColor: '#f39c12', pointRadius: 0, yAxisID: 'yThrottle' },
-                { label: 'RPM', data: data.rpm, borderColor: '#e74c3c', pointRadius: 0, yAxisID: 'yRPM' },
-                { label: 'Current (A)', data: data.current, borderColor: '#3498db', pointRadius: 0, yAxisID: 'yCurrent' }
+                { label: 'Throttle (%)', data: data.throttle, borderColor: '#f39c12', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' },
+                { label: 'RPM', data: data.rpm, borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1, yAxisID: 'yRPM' },
+                { label: 'Current (A)', data: data.current, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yCurrent' },
+                { label: 'Voltage (V)', data: data.voltage, borderColor: '#9b59b6', pointRadius: 0, borderWidth: 1, yAxisID: 'yVoltage' },
+                { label: 'Efficiency (kg/W)', data: thrustPerWatt, borderColor: '#e67e22', pointRadius: 0, borderWidth: 1, yAxisID: 'yEfficiency' }
             ]
         },
         options: {
             responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.dataset.label === 'RPM') {
+                                label += Math.round(context.parsed.y);
+                            } else if (context.dataset.label && context.dataset.label.includes('Throttle')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else if (context.dataset.label && context.dataset.label.includes('Efficiency')) {
+                                label += context.parsed.y.toFixed(3);
+                            } else {
+                                label += context.parsed.y.toFixed(1);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: { title: { display: true, text: 'Time (s)' } },
                 yThrottle: { position: 'left', title: { display: true, text: 'Throttle (%)' } },
-                yRPM: { position: 'right', title: { display: true, text: 'RPM' }, grid: { drawOnChartArea: false } },
-                yCurrent: { position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } }
+                yRPM: { 
+                    position: 'right', 
+                    title: { display: true, text: 'RPM (×10³)' }, 
+                    grid: { drawOnChartArea: false },
+                    ticks: {
+                        callback: function(value) {
+                            return (value / 1000).toFixed(1);
+                        }
+                    }
+                },
+                yCurrent: { position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } },
+                yVoltage: { position: 'right', title: { display: true, text: 'Voltage (V)' }, grid: { drawOnChartArea: false } },
+                yEfficiency: { position: 'right', title: { display: true, text: 'Efficiency (kg/W)' }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -693,14 +854,28 @@ function renderEnduranceGraphs(data) {
         data: {
             labels: data.timestamps,
             datasets: [
-                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 7), borderColor: '#e74c3c', pointRadius: 0 },
-                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 7), borderColor: '#f39c12', pointRadius: 0 },
-                { label: 'Voltage (V)', data: smoothCentered(data.voltage, 5), borderColor: '#3498db', pointRadius: 0 },
-                { label: 'Current (A)', data: smoothCentered(data.current, 5), borderColor: '#27ae60', pointRadius: 0 }
+                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 7), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 7), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
+                { label: 'Voltage (V)', data: smoothCentered(data.voltage, 5), borderColor: '#3498db', pointRadius: 0, borderWidth: 1 },
+                { label: 'Current (A)', data: smoothCentered(data.current, 5), borderColor: '#27ae60', pointRadius: 0, borderWidth: 1 }
             ]
         },
         options: {
             responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(1);
+                            return label;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: { title: { display: true, text: 'Time (s)' } },
                 y: { title: { display: true, text: 'Value' } }
@@ -761,6 +936,18 @@ function renderIRGraphs(data) {
         },
         options: {
             plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(2);
+                            return label;
+                        }
+                    }
+                },
                 annotation: {
                     annotations: {
                         labelIR: {
@@ -831,6 +1018,22 @@ function renderKVGraphs(data) {
         },
         options: {
             plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (label.includes('RPM')) {
+                                label += Math.round(context.parsed.y);
+                            } else {
+                                label += context.parsed.y.toFixed(2);
+                            }
+                            return label;
+                        }
+                    }
+                },
                 annotation: {
                     annotations: {
                         label1: {
@@ -853,7 +1056,14 @@ function renderKVGraphs(data) {
             },
             scales: {
                 x: { title:{ text:'Voltage (V)', display:true }},
-                y: { title:{ text:'RPM', display:true }}
+                y: { 
+                    title:{ text:'RPM (×10³)', display:true },
+                    ticks: {
+                        callback: function(value) {
+                            return (value / 1000).toFixed(1);
+                        }
+                    }
+                }
             }
         }
     });
@@ -868,13 +1078,31 @@ function renderThermalGraphs(data) {
         data: {
             labels: data.timestamps,
             datasets: [
-                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 5), borderColor: '#e74c3c', pointRadius: 0 },
-                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 5), borderColor: '#f39c12', pointRadius: 0 },
-                { label: 'Throttle (%)', data: data.throttle, borderColor: '#3498db', pointRadius: 0, yAxisID: 'yThrottle' }
+                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 5), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 5), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
+                { label: 'Throttle (%)', data: data.throttle, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' }
             ]
         },
         options: {
             responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.dataset.label && context.dataset.label.includes('Throttle')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else {
+                                label += context.parsed.y.toFixed(1);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
             scales: {
                 x: { title: { display: true, text: 'Time (s)' } },
                 y: { title: { display: true, text: 'Temperature (°C)' } },
@@ -893,6 +1121,88 @@ function renderMappingGraphs(data) {
     renderSweepGraphs(data);
 }
 
+// Efficiency: dedicated efficiency analysis with power efficiency (kg/W) and grams-per-watt
+function renderEfficiencyGraphs(data) {
+    const ctx = resetChartCtx();
+    
+    // Smooth data
+    const thrust = smoothCentered(data.thrust, 5);
+    const voltage = smoothCentered(data.voltage, 5);
+    const current = smoothCentered(data.current, 5);
+    const rpm = smoothCentered(data.rpm, 5);
+    
+    // Calculate power and efficiency metrics
+    const power = voltage.map((v, i) => v * current[i]); // Watts
+    const efficiency = thrust.map((t, i) => power[i] > 0 ? t / power[i] : 0); // kg/W
+    const gramsPerWatt = efficiency.map(e => e * 1000); // g/W
+    const thrustPerRPM = thrust.map((t, i) => rpm[i] > 0 ? (t * 1000) / rpm[i] : 0); // g/1000RPM
+    
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.throttle,
+            datasets: [
+                { label: 'Efficiency (kg/W)', data: efficiency, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1.5, yAxisID: 'yEfficiency' },
+                { label: 'Power (W)', data: power, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yPower' },
+                { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
+                { label: 'g/1000RPM', data: thrustPerRPM, borderColor: '#9b59b6', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrustPerRPM' }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { 
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.dataset.label && context.dataset.label.includes('Efficiency')) {
+                                label += context.parsed.y.toFixed(3);
+                            } else if (context.dataset.label && context.dataset.label.includes('Thrust')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else if (context.dataset.label && context.dataset.label.includes('g/1000RPM')) {
+                                label += context.parsed.y.toFixed(2);
+                            } else {
+                                label += context.parsed.y.toFixed(1);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { title: { display: true, text: 'Throttle (%)' } },
+                yEfficiency: { 
+                    type: 'linear', 
+                    position: 'left', 
+                    title: { display: true, text: 'Efficiency (kg/W)' }
+                },
+                yPower: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Power (W)' }, 
+                    grid: { drawOnChartArea: false } 
+                },
+                yThrust: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Thrust (kg)' }, 
+                    grid: { drawOnChartArea: false } 
+                },
+                yThrustPerRPM: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'g/1000RPM' }, 
+                    grid: { drawOnChartArea: false } 
+                }
+            }
+        }
+    });
+}
+
 // Dispatcher
 function renderGraphs(mode, data) {
     if (!data || !data.timestamps || !data.timestamps.length) {
@@ -908,6 +1218,7 @@ function renderGraphs(mode, data) {
             case 'kv': renderKVGraphs(data); break;
             case 'thermal': renderThermalGraphs(data); break;
             case 'mapping': renderMappingGraphs(data); break;
+            case 'efficiency': renderEfficiencyGraphs(data); break;
             default: renderStepGraphs(data); break;
         }
     } catch (err) {
@@ -998,10 +1309,17 @@ function getModeDescription(mode) {
         },
         mapping: {
             title: 'Prop/Motor Mapping',
-            purpose: 'Creates performance maps for different propeller/motor combinations.',
-            parameters: '<ul><li><strong>Repeats:</strong> Number of complete test cycles</li><li><strong>Ambient Temp:</strong> Starting temperature</li><li><strong>Notes:</strong> Test conditions and component details</li></ul>',
-            howItWorks: 'Performs multiple throttle sweeps to produce averaged traces.',
-            graphAnalysis: 'Overlay traces from repeats to inspect repeatability.'
+            purpose: 'Creates comprehensive performance characterization maps for motor and propeller combinations. Essential for comparing different propellers, validating motor specifications, and building performance databases for drone/aircraft design.',
+            parameters: '<ul><li><strong>Repeats:</strong> Number of complete sweep cycles (typically 3-5 for statistical averaging)</li><li><strong>Ambient Temp:</strong> Initial temperature in °C (important for thermal correction and repeatability)</li><li><strong>Notes:</strong> Record test conditions, propeller specs (diameter, pitch, material), motor model, voltage, and any other relevant setup details</li></ul>',
+            howItWorks: 'Executes multiple identical throttle sweeps from low to high throttle, allowing the system to cool between runs. Each sweep collects comprehensive telemetry including RPM, thrust, current, voltage, and temperatures. Multiple runs enable statistical analysis and reveal performance consistency. Data can be averaged to remove noise and identify reliable operating characteristics.',
+            graphAnalysis: 'Graph overlays multiple sweep traces showing RPM, thrust, and current vs throttle. Analyze trace repeatability to assess measurement quality - tight clustering indicates good data. Compare peak values across runs to check for thermal throttling or battery sag. Use this data to create performance lookup tables (thrust vs throttle, power vs RPM) for flight controller tuning. Export CSV data for further analysis in spreadsheet tools or Python/MATLAB for curve fitting and generating motor constants (Kv, Kt, Io, Rm). Ideal for propeller selection by comparing efficiency curves of different props on the same motor.'
+        },
+        efficiency: {
+            title: 'Efficiency Analysis',
+            purpose: 'Analyzes motor and propeller efficiency by measuring thrust output per watt of electrical power consumed. Identifies the most efficient operating points for your motor/propeller combination.',
+            parameters: '<ul><li><strong>Start Throttle:</strong> Initial throttle percentage (typically 10-20%)</li><li><strong>End Throttle:</strong> Final throttle percentage (typically 80-100%)</li><li><strong>Step Size:</strong> Throttle increment between measurements</li><li><strong>Dwell:</strong> Time in seconds to stabilize at each throttle step</li><li><strong>Ramp Rate:</strong> Speed of throttle changes between steps</li></ul>',
+            howItWorks: 'Performs a throttle sweep while calculating real-time efficiency metrics: thrust-to-power ratio (kg/W), power consumption (W), and propeller loading (g/1000RPM). Each metric helps identify optimal operating ranges.',
+            graphAnalysis: 'Primary graph shows Efficiency (kg/W) on left axis vs throttle. Higher values indicate more efficient operation. Additional metrics include Power (W) for total consumption, Thrust (kg) for reference, and g/1000RPM for propeller efficiency. Look for peak efficiency points - typically found at mid-throttle ranges. Compare different propellers to find the most efficient setup for your application.'
         }
     };
     return descriptions[mode] || {

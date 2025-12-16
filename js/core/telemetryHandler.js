@@ -88,15 +88,9 @@ function handleDataMessage(msg, elements) {
     // Store in global state
     state.lastRxData = msg;
     
-    // Check if we should update UI (requires active profile)
-    const hasActiveProfile = checkActiveProfile();
-    
-    if (hasActiveProfile) {
-        updateTelemetryUI(msg, elements);
-        updateAnalizeTabTelemetry(msg);
-    } else {
-        console.log('Telemetry update blocked - no active profile.');
-    }
+    // Always update telemetry displays (both Control and Analyze tabs)
+    updateTelemetryUI(msg, elements);
+    updateAnalizeTabTelemetry(msg);
     
     // Update status indicators if present
     if (msg.status !== undefined) {
