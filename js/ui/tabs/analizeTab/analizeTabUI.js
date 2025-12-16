@@ -553,9 +553,11 @@ const CrosshairPlugin = {
             // Check if touch is on legend area - if so, don't activate crosshair
             const legend = chart.legend;
             if (legend && legend.legendHitBoxes) {
+                // Add padding to make legend easier to tap
+                const tapPadding = 10;
                 for (let hitBox of legend.legendHitBoxes) {
-                    if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
-                        y >= hitBox.top && y <= hitBox.top + hitBox.height) {
+                    if (x >= hitBox.left - tapPadding && x <= hitBox.left + hitBox.width + tapPadding &&
+                        y >= hitBox.top - tapPadding && y <= hitBox.top + hitBox.height + tapPadding) {
                         // Touch is on legend, don't activate crosshair but allow click to propagate
                         return;
                     }
