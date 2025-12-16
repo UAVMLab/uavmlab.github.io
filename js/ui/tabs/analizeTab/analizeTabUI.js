@@ -550,15 +550,23 @@ const CrosshairPlugin = {
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
             
-            // Check if touch is on legend area - if so, don't activate crosshair
+            // Check if touch is on legend area - if so, trigger legend click and skip crosshair
             const legend = chart.legend;
             if (legend && legend.legendHitBoxes) {
-                // Add significant padding to make legend much easier to tap on mobile
                 const tapPadding = 25;
-                for (let hitBox of legend.legendHitBoxes) {
+                const hitBoxes = legend.legendHitBoxes;
+                const legendItems = legend.legendItems || [];
+                for (let i = 0; i < hitBoxes.length; i++) {
+                    const hitBox = hitBoxes[i];
                     if (x >= hitBox.left - tapPadding && x <= hitBox.left + hitBox.width + tapPadding &&
                         y >= hitBox.top - tapPadding && y <= hitBox.top + hitBox.height + tapPadding) {
-                        // Touch is on legend, don't activate crosshair but allow click to propagate
+                        // Fire the legend click handler manually so touch toggles the dataset
+                        evt.preventDefault();
+                        const legendItem = legendItems[i];
+                        const onClick = (legend.options && legend.options.onClick) || Chart.defaults.plugins.legend.onClick;
+                        if (onClick && legendItem) {
+                            onClick.call(legend, evt, legendItem, legend);
+                        }
                         return;
                     }
                 }
