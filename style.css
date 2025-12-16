@@ -1651,16 +1651,16 @@ footer {
     
     /* Make ALL chart text much smaller on mobile */
     canvas {
-        font-size: 5px !important;
+        font-size: 4px !important;
     }
     
     .chartjs-render-monitor {
-        font-size: 5px !important;
+        font-size: 4px !important;
     }
     
     /* Override Chart.js default font sizes */
     #graphsCard canvas {
-        --chart-font-size: 5px;
+        --chart-font-size: 4px;
     }
 }
 

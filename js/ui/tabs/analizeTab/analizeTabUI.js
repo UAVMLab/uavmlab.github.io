@@ -746,7 +746,10 @@ function getChartFontSizes() {
         legend: isMobile ? 8 : 12,
         title: isMobile ? 9 : 12,
         ticks: isMobile ? 7 : 10,
-        tooltip: isMobile ? 8 : 11
+        tooltip: isMobile ? 8 : 11,
+        boxWidth: isMobile ? 20 : 40,
+        boxHeight: isMobile ? 8 : 12,
+        padding: isMobile ? 4 : 10
     };
 }
 
@@ -785,7 +788,12 @@ function renderSweepGraphs(data) {
             plugins: { 
                 legend: { 
                     position: 'top',
-                    labels: { font: { size: fontSizes.legend } }
+                    labels: { 
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding
+                    }
                 },
                 tooltip: {
                     bodyFont: { size: fontSizes.tooltip },
@@ -1239,7 +1247,15 @@ function renderEfficiencyGraphs(data) {
         options: {
             responsive: true,
             plugins: { 
-                legend: { position: 'top' },
+                legend: { 
+                    position: 'top',
+                    labels: { 
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
