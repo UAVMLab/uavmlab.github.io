@@ -786,7 +786,7 @@ const LegendTouchFixPlugin = {
         const canvas = chart.canvas;
         let touchHandled = false;
         
-        // Handle touch events properly
+        // Handle touch events properly with correct coordinate scaling
         const handleTouch = (e) => {
             if (touchHandled) return;
             touchHandled = true;
@@ -794,15 +794,24 @@ const LegendTouchFixPlugin = {
             const touch = e.touches?.[0] || e.changedTouches?.[0];
             if (!touch) return;
             
+            // Get the actual rendered size vs canvas size to calculate scale
             const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            
+            // Calculate scale factors (Chart.js uses canvas internal coordinates)
+            const scaleX = canvasWidth / rect.width;
+            const scaleY = canvasHeight / rect.height;
+            
+            // Get touch position relative to canvas and scale to internal coordinates
+            const touchX = (touch.clientX - rect.left) * scaleX;
+            const touchY = (touch.clientY - rect.top) * scaleY;
             
             // Get legend element
             const legend = chart.legend;
-            if (!legend || !legend.legendItems) return;
+            if (!legend || !legend.legendItems || !legend.legendHitBoxes) return;
             
-            // Check if touch is in legend area
+            // Check if touch is in legend area (using internal coordinates)
             const legendBox = {
                 left: legend.left,
                 right: legend.right,
@@ -810,16 +819,15 @@ const LegendTouchFixPlugin = {
                 bottom: legend.bottom
             };
             
-            if (x >= legendBox.left && x <= legendBox.right && 
-                y >= legendBox.top && y <= legendBox.bottom) {
+            if (touchX >= legendBox.left && touchX <= legendBox.right && 
+                touchY >= legendBox.top && touchY <= legendBox.bottom) {
                 
                 // Find which legend item was touched
                 for (let i = 0; i < legend.legendItems.length; i++) {
-                    const item = legend.legendItems[i];
                     const hitBox = legend.legendHitBoxes[i];
                     
-                    if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
-                        y >= hitBox.top && y <= hitBox.top + hitBox.height) {
+                    if (touchX >= hitBox.left && touchX <= hitBox.left + hitBox.width &&
+                        touchY >= hitBox.top && touchY <= hitBox.top + hitBox.height) {
                         
                         e.preventDefault();
                         e.stopPropagation();
@@ -865,13 +873,13 @@ Chart.register(LegendTouchFixPlugin);
 function getChartFontSizes() {
     const isMobile = window.innerWidth <= 600;
     return {
-        legend: 3,
-        title: 3,
-        ticks: 3,
-        tooltip: isMobile ? 8 : 11,
+        legend: isMobile ? 4 : 10,
+        title: isMobile ? 4 : 10,
+        ticks: isMobile ? 4 : 10,
+        tooltip: isMobile ? 6 : 11,
         axisTitle: 3,
-        boxWidth: isMobile ? 12 : 16,
-        boxHeight: isMobile ? 6 : 8,
+        boxWidth: isMobile ? 20 : 16,
+        boxHeight: isMobile ? 8 : 8,
         padding: isMobile ? 6 : 8
     };
 }
