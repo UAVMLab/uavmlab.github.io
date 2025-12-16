@@ -1021,6 +1021,17 @@ function renderEnduranceGraphs(data) {
         options: {
             responsive: true,
             plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1095,6 +1106,17 @@ function renderIRGraphs(data) {
         },
         options: {
             plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1178,6 +1200,17 @@ function renderKVGraphs(data) {
         },
         options: {
             plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1247,6 +1280,17 @@ function renderThermalGraphs(data) {
         options: {
             responsive: true,
             plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
