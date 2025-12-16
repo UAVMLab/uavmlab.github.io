@@ -553,7 +553,7 @@ const CrosshairPlugin = {
             // Check if touch is on legend area - if so, trigger legend click and skip crosshair
             const legend = chart.legend;
             if (legend && legend.legendHitBoxes) {
-                const tapPadding = 25;
+                const tapPadding = 12;
                 const hitBoxes = legend.legendHitBoxes;
                 const legendItems = legend.legendItems || [];
                 for (let i = 0; i < hitBoxes.length; i++) {
@@ -783,14 +783,14 @@ Chart.register(CrosshairPlugin);
 function getChartFontSizes() {
     const isMobile = window.innerWidth <= 600;
     return {
-        legend: isMobile ? 7 : 10,
-        title: isMobile ? 9 : 12,
-        ticks: isMobile ? 7 : 10,
+        legend: 3,
+        title: 3,
+        ticks: 3,
         tooltip: isMobile ? 8 : 11,
-        axisTitle: isMobile ? 6 : 8,
-        boxWidth: isMobile ? 20 : 40,
-        boxHeight: isMobile ? 8 : 12,
-        padding: isMobile ? 8 : 15
+        axisTitle: 3,
+        boxWidth: isMobile ? 12 : 16,
+        boxHeight: isMobile ? 6 : 8,
+        padding: isMobile ? 6 : 8
     };
 }
 
@@ -883,7 +883,7 @@ function renderSweepGraphs(data) {
             },
             scales: {
                 x: { 
-                    title: { display: false },
+                    title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } },
                     ticks: { font: { size: fontSizes.ticks } }
                 },
                 yRPM: { 
@@ -1002,7 +1002,7 @@ function renderStepGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false } },
+                x: { title: { display: true, text: 'Time (s)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
                 yThrottle: { position: 'left', title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle }, color: '#f39c12' }, ticks: { color: '#f39c12', font: { size: fontSizes.ticks } } },
                 yRPM: { 
                     position: 'right', 
@@ -1067,7 +1067,7 @@ function renderEnduranceGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
+                x: { title: { display: true, text: 'Time (s)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
                 y: { title: { display: true, text: 'Temperature/Voltage/Current', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
             }
         }
@@ -1331,7 +1331,7 @@ function renderThermalGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
+                x: { title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
                 y: { title: { display: true, text: 'Temperature (°C)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' }, ticks: { color: '#e74c3c', font: { size: fontSizes.ticks } } },
                 yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { color: '#3498db', font: { size: fontSizes.ticks } } }
             }
