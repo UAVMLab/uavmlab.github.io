@@ -793,6 +793,24 @@ function renderSweepGraphs(data) {
                         boxWidth: fontSizes.boxWidth,
                         boxHeight: fontSizes.boxHeight,
                         padding: fontSizes.padding
+                    },
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        
+                        // Toggle dataset visibility
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        
+                        // Find and toggle the corresponding y-axis
+                        const dataset = chart.data.datasets[index];
+                        const yAxisID = dataset.yAxisID;
+                        
+                        if (yAxisID && chart.options.scales[yAxisID]) {
+                            chart.options.scales[yAxisID].display = !meta.hidden;
+                        }
+                        
+                        chart.update();
                     }
                 },
                 tooltip: {
@@ -1254,6 +1272,24 @@ function renderEfficiencyGraphs(data) {
                         boxWidth: fontSizes.boxWidth,
                         boxHeight: fontSizes.boxHeight,
                         padding: fontSizes.padding
+                    },
+                    onClick: function(e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const chart = legend.chart;
+                        const meta = chart.getDatasetMeta(index);
+                        
+                        // Toggle dataset visibility
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        
+                        // Find and toggle the corresponding y-axis
+                        const dataset = chart.data.datasets[index];
+                        const yAxisID = dataset.yAxisID;
+                        
+                        if (yAxisID && chart.options.scales[yAxisID]) {
+                            chart.options.scales[yAxisID].display = !meta.hidden;
+                        }
+                        
+                        chart.update();
                     }
                 },
                 tooltip: {
