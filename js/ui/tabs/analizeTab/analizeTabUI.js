@@ -779,6 +779,88 @@ const CrosshairPlugin = {
 // 👉 REGISTER IT RIGHT HERE
 Chart.register(CrosshairPlugin);
 
+// Legend Touch Fix Plugin - Properly handles touch events on mobile
+const LegendTouchFixPlugin = {
+    id: 'legendTouchFix',
+    afterInit(chart) {
+        const canvas = chart.canvas;
+        let touchHandled = false;
+        
+        // Handle touch events properly
+        const handleTouch = (e) => {
+            if (touchHandled) return;
+            touchHandled = true;
+            
+            const touch = e.touches?.[0] || e.changedTouches?.[0];
+            if (!touch) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            
+            // Get legend element
+            const legend = chart.legend;
+            if (!legend || !legend.legendItems) return;
+            
+            // Check if touch is in legend area
+            const legendBox = {
+                left: legend.left,
+                right: legend.right,
+                top: legend.top,
+                bottom: legend.bottom
+            };
+            
+            if (x >= legendBox.left && x <= legendBox.right && 
+                y >= legendBox.top && y <= legendBox.bottom) {
+                
+                // Find which legend item was touched
+                for (let i = 0; i < legend.legendItems.length; i++) {
+                    const item = legend.legendItems[i];
+                    const hitBox = legend.legendHitBoxes[i];
+                    
+                    if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
+                        y >= hitBox.top && y <= hitBox.top + hitBox.height) {
+                        
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // Toggle dataset
+                        const meta = chart.getDatasetMeta(i);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[i].hidden : null;
+                        
+                        // Toggle y-axis
+                        const dataset = chart.data.datasets[i];
+                        const yAxisID = dataset.yAxisID;
+                        if (yAxisID && chart.options.scales[yAxisID]) {
+                            chart.options.scales[yAxisID].display = !meta.hidden;
+                        }
+                        
+                        chart.update();
+                        break;
+                    }
+                }
+            }
+            
+            setTimeout(() => { touchHandled = false; }, 300);
+        };
+        
+        canvas.addEventListener('touchend', handleTouch, { passive: false });
+        
+        // Store cleanup function
+        chart._legendTouchCleanup = () => {
+            canvas.removeEventListener('touchend', handleTouch);
+        };
+    },
+    
+    destroy(chart) {
+        if (chart._legendTouchCleanup) {
+            chart._legendTouchCleanup();
+        }
+    }
+};
+
+Chart.register(LegendTouchFixPlugin);
+
 // Helper function to get chart font sizes based on screen width
 function getChartFontSizes() {
     const isMobile = window.innerWidth <= 600;
