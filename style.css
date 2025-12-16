@@ -1648,8 +1648,19 @@ footer {
     #modeDescriptionCard ul {
         font-size: 0.65rem !important;
     }
+    
+    /* Make ALL chart text much smaller on mobile */
+    canvas {
+        font-size: 5px !important;
+    }
+    
     .chartjs-render-monitor {
-        font-size: 0.65rem !important;
+        font-size: 5px !important;
+    }
+    
+    /* Override Chart.js default font sizes */
+    #graphsCard canvas {
+        --chart-font-size: 5px;
     }
 }
 

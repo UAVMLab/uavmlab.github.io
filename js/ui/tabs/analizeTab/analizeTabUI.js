@@ -544,9 +544,43 @@ const CrosshairPlugin = {
             chart.draw();
         }
 
+        function hideCrosshair(evt) {
+            // Check if click/tap is outside canvas
+            const rect = canvas.getBoundingClientRect();
+            const x = evt.clientX || (evt.touches && evt.touches[0] && evt.touches[0].clientX);
+            const y = evt.clientY || (evt.touches && evt.touches[0] && evt.touches[0].clientY);
+            
+            if (!x || !y) return;
+            
+            const isOutside = x < rect.left || x > rect.right || y < rect.top || y > rect.bottom;
+            
+            if (isOutside) {
+                chart.$crosshair.active = false;
+                chart.$crosshair.x = null;
+                chart.draw();
+            }
+        }
+
         canvas.addEventListener('mousemove', handleMove);
         canvas.addEventListener('touchmove', handleTouch);
         canvas.addEventListener('touchstart', handleTouch);
+        
+        // Hide crosshair when clicking/tapping outside
+        document.addEventListener('click', hideCrosshair);
+        document.addEventListener('touchstart', hideCrosshair);
+        
+        // Store cleanup function
+        chart.$crosshair.cleanup = () => {
+            document.removeEventListener('click', hideCrosshair);
+            document.removeEventListener('touchstart', hideCrosshair);
+        };
+    },
+    
+    destroy(chart) {
+        // Cleanup event listeners
+        if (chart.$crosshair && chart.$crosshair.cleanup) {
+            chart.$crosshair.cleanup();
+        }
     },
 
     afterDraw(chart, args, options) {
@@ -685,8 +719,11 @@ const CrosshairPlugin = {
         const boxY = chart.chartArea.top + 10;
         const padding = 6;
         ctx.save();
-        ctx.font = "12px sans-serif";
-        const textHeight = 14;
+        // Use smaller font on mobile
+        const isMobile = window.innerWidth <= 600;
+        const fontSize = isMobile ? 8 : 12;
+        const textHeight = isMobile ? 10 : 14;
+        ctx.font = `${fontSize}px sans-serif`;
         const boxW = Math.max(...lines.map(t => ctx.measureText(t).width)) + padding * 2;
         const boxH = lines.length * textHeight + padding * 2;
         ctx.fillStyle = "rgba(0,0,0,0.65)";
@@ -702,9 +739,21 @@ const CrosshairPlugin = {
 // 👉 REGISTER IT RIGHT HERE
 Chart.register(CrosshairPlugin);
 
+// Helper function to get chart font sizes based on screen width
+function getChartFontSizes() {
+    const isMobile = window.innerWidth <= 600;
+    return {
+        legend: isMobile ? 8 : 12,
+        title: isMobile ? 9 : 12,
+        ticks: isMobile ? 7 : 10,
+        tooltip: isMobile ? 8 : 11
+    };
+}
+
 // Sweep: throttle on X -> scatter/line for RPM, Thrust, Current (overlaid)
 function renderSweepGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
 
     // Optionally smooth each series lightly
     const rpm = smoothCentered(data.rpm, 3);
@@ -734,8 +783,13 @@ function renderSweepGraphs(data) {
         options: {
             responsive: true,
             plugins: { 
-                legend: { position: 'top' },
+                legend: { 
+                    position: 'top',
+                    labels: { font: { size: fontSizes.legend } }
+                },
                 tooltip: {
+                    bodyFont: { size: fontSizes.tooltip },
+                    titleFont: { size: fontSizes.tooltip },
                     callbacks: {
                         label: function(context) {
                             let label = context.dataset.label || '';
@@ -759,21 +813,49 @@ function renderSweepGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: true, text: 'Throttle (%)' } },
+                x: { 
+                    title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.title } },
+                    ticks: { font: { size: fontSizes.ticks } }
+                },
                 yRPM: { 
                     type: 'linear', 
                     position: 'left', 
-                    title: { display: true, text: 'RPM (×10³)' },
+                    title: { display: true, text: 'RPM (×10³)', font: { size: fontSizes.title } },
                     ticks: {
+                        font: { size: fontSizes.ticks },
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
                         }
                     }
                 },
-                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (kg)' }, grid: { drawOnChartArea: false } },
-                yCurrent: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)' }, grid: { drawOnChartArea: false } },
-                yVoltage: { type: 'linear', position: 'right', title: { display: true, text: 'Voltage (V)' }, grid: { drawOnChartArea: false } },
-                yEfficiency: { type: 'linear', position: 'right', title: { display: true, text: 'Efficiency (kg/W)' }, grid: { drawOnChartArea: false } }
+                yThrust: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.title } },
+                    ticks: { font: { size: fontSizes.ticks } },
+                    grid: { drawOnChartArea: false } 
+                },
+                yCurrent: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Current (A)', font: { size: fontSizes.title } },
+                    ticks: { font: { size: fontSizes.ticks } },
+                    grid: { drawOnChartArea: false } 
+                },
+                yVoltage: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.title } },
+                    ticks: { font: { size: fontSizes.ticks } },
+                    grid: { drawOnChartArea: false } 
+                },
+                yEfficiency: { 
+                    type: 'linear', 
+                    position: 'right', 
+                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.title } },
+                    ticks: { font: { size: fontSizes.ticks } },
+                    grid: { drawOnChartArea: false } 
+                }
             }
         }
     });
@@ -782,6 +864,7 @@ function renderSweepGraphs(data) {
 // Step: time vs throttle,RPM,current — time-series with dual axis
 function renderStepGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
     
     // Calculate efficiency metrics
     const thrustPerWatt = data.thrust.map((t, i) => {
@@ -849,6 +932,7 @@ function renderStepGraphs(data) {
 // Endurance: time-series for temp/voltage/current
 function renderEnduranceGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -887,6 +971,7 @@ function renderEnduranceGraphs(data) {
 // IR: ΔV vs ΔI scatter with linear fit (simple)
 function renderIRGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
 
     const points = [];
     for (let i = 1; i < data.voltage.length; i++) {
@@ -975,6 +1060,7 @@ function renderIRGraphs(data) {
 // KV: RPM vs Voltage scatter (slope = KV)
 function renderKVGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
     // Use meanVoltage and meanRPM if available, else fallback to raw arrays
     const voltArr = data.meanVoltage && data.meanVoltage.length ? data.meanVoltage : data.voltage;
     const rpmArr = data.meanRPM && data.meanRPM.length ? data.meanRPM : data.rpm;
@@ -1073,6 +1159,7 @@ function renderKVGraphs(data) {
 // Thermal stress: temps vs time + throttle as overlay axis
 function renderThermalGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -1124,6 +1211,7 @@ function renderMappingGraphs(data) {
 // Efficiency: dedicated efficiency analysis with power efficiency (kg/W) and grams-per-watt
 function renderEfficiencyGraphs(data) {
     const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
     
     // Smooth data
     const thrust = smoothCentered(data.thrust, 5);
