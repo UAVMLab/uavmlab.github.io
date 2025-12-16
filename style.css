@@ -1186,10 +1186,6 @@ footer {
 
 /* Small Mobile Devices (portrait phones) */
 @media (max-width: 480px) {
-    header {
-        padding: 0.75rem 1rem;
-    }
-
     .header-inner {
         flex-direction: row;
         align-items: center;
@@ -1197,23 +1193,13 @@ footer {
         flex-wrap: nowrap;
     }
 
-    .app-logo-svg {
-        width: 32px !important;
-        height: 32px !important;
-    }
-
-    .sintez-logo {
-        height: 28px !important;
-    }
-
     header p {
         font-size: 0.85rem;
     }
 
     .badge {
-        font-size: 0.65rem;
-        padding: 0.2rem 0.4rem;
-        white-space: nowrap;
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
     }
 
     main {
