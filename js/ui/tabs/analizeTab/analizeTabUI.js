@@ -553,8 +553,8 @@ const CrosshairPlugin = {
             // Check if touch is on legend area - if so, don't activate crosshair
             const legend = chart.legend;
             if (legend && legend.legendHitBoxes) {
-                // Add padding to make legend easier to tap
-                const tapPadding = 10;
+                // Add significant padding to make legend much easier to tap on mobile
+                const tapPadding = 25;
                 for (let hitBox of legend.legendHitBoxes) {
                     if (x >= hitBox.left - tapPadding && x <= hitBox.left + hitBox.width + tapPadding &&
                         y >= hitBox.top - tapPadding && y <= hitBox.top + hitBox.height + tapPadding) {
@@ -779,9 +779,10 @@ function getChartFontSizes() {
         title: isMobile ? 9 : 12,
         ticks: isMobile ? 7 : 10,
         tooltip: isMobile ? 8 : 11,
+        axisTitle: isMobile ? 6 : 8,
         boxWidth: isMobile ? 20 : 40,
         boxHeight: isMobile ? 8 : 12,
-        padding: isMobile ? 4 : 10
+        padding: isMobile ? 8 : 15
     };
 }
 
@@ -880,7 +881,7 @@ function renderSweepGraphs(data) {
                 yRPM: { 
                     type: 'linear', 
                     position: 'left', 
-                    title: { display: false },
+                    title: { display: true, text: 'RPM (×10³)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' },
                     ticks: {
                         font: { size: fontSizes.ticks },
                         color: '#e74c3c',
@@ -892,7 +893,7 @@ function renderSweepGraphs(data) {
                 yThrust: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
+                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' },
                     ticks: { 
                         font: { size: fontSizes.ticks },
                         color: '#27ae60'
@@ -902,7 +903,7 @@ function renderSweepGraphs(data) {
                 yCurrent: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
+                    title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' },
                     ticks: { 
                         font: { size: fontSizes.ticks },
                         color: '#3498db'
@@ -912,7 +913,7 @@ function renderSweepGraphs(data) {
                 yVoltage: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
+                    title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.axisTitle }, color: '#9b59b6' },
                     ticks: { 
                         font: { size: fontSizes.ticks },
                         color: '#9b59b6'
@@ -922,7 +923,7 @@ function renderSweepGraphs(data) {
                 yEfficiency: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
+                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' },
                     ticks: { 
                         font: { size: fontSizes.ticks },
                         color: '#e67e22'
@@ -960,6 +961,17 @@ function renderStepGraphs(data) {
         options: {
             responsive: true,
             plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: fontSizes.legend },
+                        boxWidth: fontSizes.boxWidth,
+                        boxHeight: fontSizes.boxHeight,
+                        padding: fontSizes.padding,
+                        textAlign: 'center',
+                        usePointStyle: false
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -983,21 +995,22 @@ function renderStepGraphs(data) {
             },
             scales: {
                 x: { title: { display: false } },
-                yThrottle: { position: 'left', title: { display: false }, ticks: { color: '#f39c12' } },
+                yThrottle: { position: 'left', title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle }, color: '#f39c12' }, ticks: { color: '#f39c12', font: { size: fontSizes.ticks } } },
                 yRPM: { 
                     position: 'right', 
-                    title: { display: false }, 
+                    title: { display: true, text: 'RPM (×10³)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' }, 
                     grid: { drawOnChartArea: false },
                     ticks: {
                         color: '#e74c3c',
+                        font: { size: fontSizes.ticks },
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
                         }
                     }
                 },
-                yCurrent: { position: 'right', title: { display: false }, ticks: { color: '#3498db' }, grid: { drawOnChartArea: false } },
-                yVoltage: { position: 'right', title: { display: false }, ticks: { color: '#9b59b6' }, grid: { drawOnChartArea: false } },
-                yEfficiency: { position: 'right', title: { display: false }, ticks: { color: '#e67e22' }, grid: { drawOnChartArea: false } }
+                yCurrent: { position: 'right', title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { color: '#3498db', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
+                yVoltage: { position: 'right', title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.axisTitle }, color: '#9b59b6' }, ticks: { color: '#9b59b6', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
+                yEfficiency: { position: 'right', title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -1046,8 +1059,8 @@ function renderEnduranceGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false } },
-                y: { title: { display: false } }
+                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
+                y: { title: { display: true, text: 'Temperature/Voltage/Current', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
             }
         }
     });
@@ -1145,8 +1158,8 @@ function renderIRGraphs(data) {
                 }
             },
             scales: {
-                x: { title:{ text:'ΔCurrent (A)', display:false }},
-                y: { title:{ text:'ΔVoltage (V)', display:false }}
+                x: { title:{ text:'ΔCurrent (A)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
+                y: { title:{ text:'ΔVoltage (V)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
             }
         }
     });
@@ -1248,10 +1261,11 @@ function renderKVGraphs(data) {
                 }
             },
             scales: {
-                x: { title:{ text:'Voltage (V)', display:false }},
+                x: { title:{ text:'Voltage (V)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
                 y: { 
-                    title:{ text:'RPM (×10³)', display:false },
+                    title:{ text:'RPM (×10³)', display:true, font: { size: fontSizes.axisTitle } },
                     ticks: {
+                        font: { size: fontSizes.ticks },
                         callback: function(value) {
                             return (value / 1000).toFixed(1);
                         }
@@ -1309,9 +1323,9 @@ function renderThermalGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false } },
-                y: { title: { display: false }, ticks: { color: '#e74c3c' } },
-                yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: false }, ticks: { color: '#3498db' } }
+                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
+                y: { title: { display: true, text: 'Temperature (°C)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' }, ticks: { color: '#e74c3c', font: { size: fontSizes.ticks } } },
+                yThrottle: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { color: '#3498db', font: { size: fontSizes.ticks } } }
             }
         }
     });
@@ -1408,32 +1422,32 @@ function renderEfficiencyGraphs(data) {
                 }
             },
             scales: {
-                x: { title: { display: false } },
+                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
                 yEfficiency: { 
                     type: 'linear', 
                     position: 'left', 
-                    title: { display: false },
-                    ticks: { color: '#e67e22' }
+                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' },
+                    ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }
                 },
                 yPower: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
-                    ticks: { color: '#e74c3c' },
+                    title: { display: true, text: 'Power (W)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' },
+                    ticks: { color: '#e74c3c', font: { size: fontSizes.ticks } },
                     grid: { drawOnChartArea: false } 
                 },
                 yThrust: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
-                    ticks: { color: '#27ae60' },
+                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' },
+                    ticks: { color: '#27ae60', font: { size: fontSizes.ticks } },
                     grid: { drawOnChartArea: false } 
                 },
                 yThrustPerRPM: { 
                     type: 'linear', 
                     position: 'right', 
-                    title: { display: false },
-                    ticks: { color: '#9b59b6' },
+                    title: { display: true, text: 'g/1000RPM', font: { size: fontSizes.axisTitle }, color: '#9b59b6' },
+                    ticks: { color: '#9b59b6', font: { size: fontSizes.ticks } },
                     grid: { drawOnChartArea: false } 
                 }
             }
