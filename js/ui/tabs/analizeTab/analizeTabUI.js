@@ -530,6 +530,15 @@ const CrosshairPlugin = {
         function handleMove(evt) {
             const rect = canvas.getBoundingClientRect();
             const x = evt.clientX - rect.left;
+            const y = evt.clientY - rect.top;
+            
+            // Only activate crosshair if within chart area
+            const chartArea = chart.chartArea;
+            if (!chartArea || x < chartArea.left || x > chartArea.right || 
+                y < chartArea.top || y > chartArea.bottom) {
+                return;
+            }
+            
             chart.$crosshair.x = x;
             chart.$crosshair.active = true;
             chart.draw();
@@ -548,9 +557,17 @@ const CrosshairPlugin = {
                     if (x >= hitBox.left && x <= hitBox.left + hitBox.width &&
                         y >= hitBox.top && y <= hitBox.top + hitBox.height) {
                         // Touch is on legend, don't activate crosshair
+                        evt.stopPropagation();
                         return;
                     }
                 }
+            }
+            
+            // Only activate crosshair if within chart area
+            const chartArea = chart.chartArea;
+            if (!chartArea || x < chartArea.left || x > chartArea.right || 
+                y < chartArea.top || y > chartArea.bottom) {
+                return;
             }
             
             chart.$crosshair.x = x;
@@ -576,8 +593,8 @@ const CrosshairPlugin = {
         }
 
         canvas.addEventListener('mousemove', handleMove);
-        canvas.addEventListener('touchmove', handleTouch);
-        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
         
         // Hide crosshair when clicking/tapping outside
         document.addEventListener('click', hideCrosshair);
