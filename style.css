@@ -216,11 +216,9 @@ html {
 }
 
 .card .metric p {
-    margin: 0.15rem 0 0;
-    font-size: 1.35rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    margin: 0.1rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
 }
 
 /* Parameters grid styling */
