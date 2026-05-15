@@ -4,7 +4,7 @@
             <h2>Connection Status</h2>
             <div class="button-row">
                 <button id="connectButton">Scan &amp; Connect</button>
-                <button id="disconnectButton" disabled data-connected-only>Disconnect</button>
+                <button id="disconnectButton" disabled data-connected-only title="Connect a device first">Disconnect</button>
             </div>
             <div id="status">
                 <p id="statusText">Web Bluetooth not initialized.</p>
@@ -40,8 +40,8 @@
             <h2>Device ID Configuration</h2>
             <div class="inline-field">
                 <label for="deviceIdInput">Device ID:</label>
-                <input type="number" id="deviceIdInput" min="0" max="255" step="1" value="0" data-connected-only>
-                <button id="setDeviceIdButton" data-connected-only>Set ID</button>
+                <input type="number" id="deviceIdInput" min="0" max="255" step="1" value="0" data-connected-only title="Connect a device to configure the ID">
+                <button id="setDeviceIdButton" data-connected-only title="Connect a device first">Set ID</button>
             </div>
             <p class="subtext" style="margin-top: 0.5rem; font-size: 0.75rem; color: #8b949e;">
                 ⚠️ Setting a new ID will reboot the device and disconnect. After disconnection, refresh the page and reconnect to see the updated device name.
