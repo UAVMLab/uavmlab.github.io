@@ -112,7 +112,10 @@ function updateTelemetryUI(msg, { voltageMetric, currentMetric, powerMetric, rpm
         updateCurrentIndicator(msg.current);
     }
     if (msg.power !== undefined) {
-        powerMetric.textContent = `${msg.power.toFixed(2)} W`;
+        const power = (msg.voltage !== undefined && msg.current !== undefined)
+            ? msg.voltage * msg.current
+            : msg.power;
+        powerMetric.textContent = `${power.toFixed(2)} W`;
     }
     if (msg.rpm !== undefined) {
         rpmMetric.textContent = msg.rpm;
@@ -153,7 +156,10 @@ function updateAnalizeTabTelemetry(msg) {
         updateCurrentIndicatorAnalize(msg.current);
     }
     if (aP && msg.power !== undefined) {
-        aP.textContent = `${msg.power.toFixed(2)} W`;
+        const power = (msg.voltage !== undefined && msg.current !== undefined)
+            ? msg.voltage * msg.current
+            : msg.power;
+        aP.textContent = `${power.toFixed(2)} W`;
     }
     if (aRPM && msg.rpm !== undefined) {
         aRPM.textContent = `${msg.rpm}`;

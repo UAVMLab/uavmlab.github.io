@@ -200,9 +200,9 @@ async function startAnalyze(mode, params) {
         const d = state.analysis.data;
         d.timestamps.push(now);
         d.throttle.push(parseFloat(currentThrottle.toFixed(2)));
-        d.voltage.push(parseFloat((tel.voltage || 0).toFixed(1)));
-        d.current.push(parseFloat((tel.current || 0).toFixed(1)));
-        d.power.push(parseFloat((tel.power || 0).toFixed(1)));
+        d.voltage.push(tel.voltage || 0);
+        d.current.push(tel.current || 0);
+        d.power.push((tel.voltage || 0) * (tel.current || 0));
         d.rpm.push(Math.round(tel.rpm || 0));
         d.thrust.push(parseFloat(((tel.thrust || 0) / 1000).toFixed(2)));
         d.escTemp.push(parseFloat((tel.escTemp || 0).toFixed(1)));
