@@ -56,7 +56,8 @@ function getUnit(metric) {
 }
 
 // Centered smoothing (non-causal, minimal lag)
-function smoothCentered(arr, windowSize = 5) {
+// Default window=11 gives a ~550 ms smoothing envelope at 20 Hz sample rate
+function smoothCentered(arr, windowSize = 11) {
     if (!arr || arr.length === 0) return [];
     const half = Math.floor(windowSize / 2);
     const out = new Array(arr.length);
@@ -67,6 +68,41 @@ function smoothCentered(arr, windowSize = 5) {
         for (let j = start; j <= end; j++) sum += arr[j];
         out[i] = sum / (end - start + 1);
     }
+    return out;
+}
+
+// Bin-averaging decimation: reduces arr to maxPts by averaging groups of consecutive samples.
+// The averaging acts as a low-pass anti-aliasing filter before Chart.js renders.
+function decimateForDisplay(arr, maxPts) {
+    if (!arr || arr.length <= maxPts) return arr.slice();
+    const n = arr.length;
+    const out = new Array(maxPts);
+    for (let i = 0; i < maxPts; i++) {
+        const start = Math.floor(i * n / maxPts);
+        const end   = Math.floor((i + 1) * n / maxPts);
+        let sum = 0;
+        for (let j = start; j < end; j++) sum += arr[j];
+        out[i] = sum / (end - start);
+    }
+    return out;
+}
+
+// Decimates all numeric channels in a raw data snapshot to at most maxPts display points.
+// Returns a new shallow-copy object — the original state.analysis.data is never mutated.
+const DISPLAY_MAX_PTS = 500;
+function prepareDataForRender(raw, maxPts = DISPLAY_MAX_PTS) {
+    if (!raw || !raw.timestamps) return raw;
+    if (raw.timestamps.length <= maxPts) return raw; // no decimation needed
+    const keys = ['timestamps', 'throttle', 'voltage', 'current', 'power', 'rpm', 'thrust', 'escTemp', 'motorTemp'];
+    const out = {};
+    for (const k of keys) {
+        if (raw[k] && Array.isArray(raw[k])) {
+            out[k] = decimateForDisplay(raw[k], maxPts);
+        }
+    }
+    // preserve scalar / non-channel fields used by KV/IR renderers
+    if (raw.meanVoltage) out.meanVoltage = raw.meanVoltage;
+    if (raw.meanRPM)     out.meanRPM     = raw.meanRPM;
     return out;
 }
 
@@ -163,7 +199,7 @@ async function startAnalyze(mode, params) {
         d.thrust.push(parseFloat(((tel.thrust || 0) / 1000).toFixed(2)));
         d.escTemp.push(parseFloat((tel.escTemp || 0).toFixed(1)));
         d.motorTemp.push(parseFloat((tel.motorTemp || 0).toFixed(1)));
-    }, 200);
+    }, 50); // 20 Hz — 4× resolution for smooth graphs
 
     // Function to start data collection (called after first throttle command)
     window._startDataCollection = () => {
@@ -888,12 +924,12 @@ function getChartFontSizes() {
 function renderSweepGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
+    const d = prepareDataForRender(data); // decimate to ≤500 pts for Chart.js performance
 
-    // Optionally smooth each series lightly
-    const rpm = smoothCentered(data.rpm, 3);
-    const thrust = smoothCentered(data.thrust, 3);
-    const current = smoothCentered(data.current, 3);
-    const voltage = smoothCentered(data.voltage, 3);
+    const rpm     = smoothCentered(d.rpm,     11);
+    const thrust  = smoothCentered(d.thrust,  11);
+    const current = smoothCentered(d.current, 11);
+    const voltage = smoothCentered(d.voltage, 11);
     
     // Calculate efficiency metrics
     const powerEfficiency = thrust.map((t, i) => {
@@ -905,7 +941,7 @@ function renderSweepGraphs(data) {
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.throttle,
+            labels: d.throttle,
             datasets: [
                 { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yRPM' },
                 { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
@@ -1037,22 +1073,28 @@ function renderSweepGraphs(data) {
 function renderStepGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
-    
+    const d = prepareDataForRender(data);
+
+    const rpm     = smoothCentered(d.rpm,     11);
+    const current = smoothCentered(d.current, 11);
+    const voltage = smoothCentered(d.voltage, 11);
+    const thrust  = smoothCentered(d.thrust,  11);
+
     // Calculate efficiency metrics
-    const thrustPerWatt = data.thrust.map((t, i) => {
-        const power = data.voltage[i] * data.current[i];
+    const thrustPerWatt = thrust.map((t, i) => {
+        const power = voltage[i] * current[i];
         return power > 0 ? t / power : 0; // kg/W
     });
     
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.timestamps,
+            labels: d.timestamps,
             datasets: [
-                { label: 'Throttle (%)', data: data.throttle, borderColor: '#f39c12', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' },
-                { label: 'RPM', data: data.rpm, borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1, yAxisID: 'yRPM' },
-                { label: 'Current (A)', data: data.current, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yCurrent' },
-                { label: 'Voltage (V)', data: data.voltage, borderColor: '#9b59b6', pointRadius: 0, borderWidth: 1, yAxisID: 'yVoltage' },
+                { label: 'Throttle (%)', data: d.throttle, borderColor: '#f39c12', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' },
+                { label: 'RPM', data: rpm, borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1, yAxisID: 'yRPM' },
+                { label: 'Current (A)', data: current, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yCurrent' },
+                { label: 'Voltage (V)', data: voltage, borderColor: '#9b59b6', pointRadius: 0, borderWidth: 1, yAxisID: 'yVoltage' },
                 { label: 'Efficiency (kg/W)', data: thrustPerWatt, borderColor: '#e67e22', pointRadius: 0, borderWidth: 1, yAxisID: 'yEfficiency' }
             ]
         },
@@ -1118,15 +1160,16 @@ function renderStepGraphs(data) {
 function renderEnduranceGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
+    const d = prepareDataForRender(data);
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.timestamps,
+            labels: d.timestamps,
             datasets: [
-                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 7), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
-                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 7), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
-                { label: 'Voltage (V)', data: smoothCentered(data.voltage, 5), borderColor: '#3498db', pointRadius: 0, borderWidth: 1 },
-                { label: 'Current (A)', data: smoothCentered(data.current, 5), borderColor: '#27ae60', pointRadius: 0, borderWidth: 1 }
+                { label: 'ESC Temp (°C)',   data: smoothCentered(d.escTemp,   11), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(d.motorTemp, 11), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
+                { label: 'Voltage (V)',     data: smoothCentered(d.voltage,   11), borderColor: '#3498db', pointRadius: 0, borderWidth: 1 },
+                { label: 'Current (A)',     data: smoothCentered(d.current,   11), borderColor: '#27ae60', pointRadius: 0, borderWidth: 1 }
             ]
         },
         options: {
@@ -1379,14 +1422,15 @@ function renderKVGraphs(data) {
 function renderThermalGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
+    const d = prepareDataForRender(data);
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.timestamps,
+            labels: d.timestamps,
             datasets: [
-                { label: 'ESC Temp (°C)', data: smoothCentered(data.escTemp, 5), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
-                { label: 'Motor Temp (°C)', data: smoothCentered(data.motorTemp, 5), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
-                { label: 'Throttle (%)', data: data.throttle, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' }
+                { label: 'ESC Temp (°C)',   data: smoothCentered(d.escTemp,   11), borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1 },
+                { label: 'Motor Temp (°C)', data: smoothCentered(d.motorTemp, 11), borderColor: '#f39c12', pointRadius: 0, borderWidth: 1 },
+                { label: 'Throttle (%)',    data: d.throttle, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yThrottle' }
             ]
         },
         options: {
@@ -1431,23 +1475,23 @@ function renderThermalGraphs(data) {
 
 // Mapping: overlayed multiple sweep traces are part of history; for a single run, use sweep renderer
 function renderMappingGraphs(data) {
-    // slightly stronger smoothing for mapping
-    data.rpm = smoothCentered(data.rpm, 7);
-    data.thrust = smoothCentered(data.thrust, 7);
-    data.current = smoothCentered(data.current, 7);
-    renderSweepGraphs(data);
+    const d = prepareDataForRender(data);
+    d.rpm     = smoothCentered(d.rpm,     11);
+    d.thrust  = smoothCentered(d.thrust,  11);
+    d.current = smoothCentered(d.current, 11);
+    renderSweepGraphs(d);
 }
 
 // Efficiency: dedicated efficiency analysis with power efficiency (kg/W) and grams-per-watt
 function renderEfficiencyGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
-    
-    // Smooth data
-    const thrust = smoothCentered(data.thrust, 5);
-    const voltage = smoothCentered(data.voltage, 5);
-    const current = smoothCentered(data.current, 5);
-    const rpm = smoothCentered(data.rpm, 5);
+    const d = prepareDataForRender(data);
+
+    const thrust  = smoothCentered(d.thrust,  11);
+    const voltage = smoothCentered(d.voltage, 11);
+    const current = smoothCentered(d.current, 11);
+    const rpm     = smoothCentered(d.rpm,     11);
     
     // Calculate power and efficiency metrics
     const power = voltage.map((v, i) => v * current[i]); // Watts
@@ -1458,7 +1502,7 @@ function renderEfficiencyGraphs(data) {
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.throttle,
+            labels: d.throttle,
             datasets: [
                 { label: 'Efficiency (kg/W)', data: efficiency, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1.5, yAxisID: 'yEfficiency' },
                 { label: 'Power (W)', data: power, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yPower' },
