@@ -92,17 +92,25 @@ function decimateForDisplay(arr, maxPts) {
 const DISPLAY_MAX_PTS = 500;
 function prepareDataForRender(raw, maxPts = DISPLAY_MAX_PTS) {
     if (!raw || !raw.timestamps) return raw;
-    if (raw.timestamps.length <= maxPts) return raw; // no decimation needed
+    // Trim ramp-down tail: only use samples up to the marked measurement end
+    const endIdx = (raw._endIndex != null) ? raw._endIndex : raw.timestamps.length;
     const keys = ['timestamps', 'throttle', 'voltage', 'current', 'power', 'rpm', 'thrust', 'escTemp', 'motorTemp'];
+    // Slice first, then decide whether to decimate
+    const sliced = {};
+    for (const k of keys) {
+        if (raw[k] && Array.isArray(raw[k])) sliced[k] = raw[k].slice(0, endIdx);
+    }
+    if (raw.meanVoltage) sliced.meanVoltage = raw.meanVoltage;
+    if (raw.meanRPM)     sliced.meanRPM     = raw.meanRPM;
+    if ((sliced.timestamps || []).length <= maxPts) return sliced;
     const out = {};
     for (const k of keys) {
-        if (raw[k] && Array.isArray(raw[k])) {
-            out[k] = decimateForDisplay(raw[k], maxPts);
+        if (sliced[k] && Array.isArray(sliced[k])) {
+            out[k] = decimateForDisplay(sliced[k], maxPts);
         }
     }
-    // preserve scalar / non-channel fields used by KV/IR renderers
-    if (raw.meanVoltage) out.meanVoltage = raw.meanVoltage;
-    if (raw.meanRPM)     out.meanRPM     = raw.meanRPM;
+    if (sliced.meanVoltage) out.meanVoltage = sliced.meanVoltage;
+    if (sliced.meanRPM)     out.meanRPM     = sliced.meanRPM;
     return out;
 }
 
@@ -200,6 +208,11 @@ async function startAnalyze(mode, params) {
         d.escTemp.push(parseFloat((tel.escTemp || 0).toFixed(1)));
         d.motorTemp.push(parseFloat((tel.motorTemp || 0).toFixed(1)));
     }, 50); // 20 Hz — 4× resolution for smooth graphs
+
+    // Function to mark measurement end (call before ramp-down so ramp-down data is excluded from charts)
+    window._markDataEnd = () => {
+        if (state.analysis.data) state.analysis.data._endIndex = state.analysis.data.timestamps.length;
+    };
 
     // Function to start data collection (called after first throttle command)
     window._startDataCollection = () => {
@@ -301,7 +314,8 @@ async function runThrottleSweep(params) {
         }
         if (!state.analysis.running) break;
 
-        // Ramp down to zero
+        // Ramp down to zero (mark end of measurement data before ramp-down on last repeat)
+        if (repeat === repeats - 1) window._markDataEnd && window._markDataEnd();
         await rampThrottle(endThrottle, 0, Math.max(200, (endThrottle / rampRate) * 1000));
         if (!state.analysis.running) break;
     }
@@ -343,7 +357,8 @@ async function runEnduranceTest(params) {
     if (!state.analysis.running) return;
     updateProgress(100, 'Endurance test completed');
 
-    // ramp down
+    // ramp down (mark end of measurement data before ramping down)
+    window._markDataEnd && window._markDataEnd();
     await rampThrottle(throttle, 0, 2000);
 
     // cooldown time
@@ -423,6 +438,7 @@ async function runKVEstimation(params) {
         }
     }
     if (state.analysis.running) {
+        window._markDataEnd && window._markDataEnd();
         await sendThrottle(0);
         updateProgress(100, 'KV estimation completed');
     }
@@ -443,6 +459,7 @@ async function runThermalStress(params) {
     if (!state.analysis.running) return;
 
     updateProgress(100, 'Thermal stress test completed');
+    window._markDataEnd && window._markDataEnd();
     await rampThrottle(segment2Throttle, 0, 2000);
 }
 
@@ -474,7 +491,8 @@ async function runEfficiencyAnalysis(params) {
     }
     if (!state.analysis.running) return;
 
-    // Ramp down to zero
+    // Ramp down to zero (mark end of measurement data before ramping down)
+    window._markDataEnd && window._markDataEnd();
     await rampThrottle(endThrottle, 0, Math.max(200, (endThrottle / rampRate) * 1000));
     updateProgress(100, 'Efficiency analysis completed');
 }
@@ -941,7 +959,7 @@ function renderSweepGraphs(data) {
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: d.throttle,
+            labels: d.throttle.map(v => Math.round(v)),
             datasets: [
                 { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yRPM' },
                 { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
@@ -1502,7 +1520,7 @@ function renderEfficiencyGraphs(data) {
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: d.throttle,
+            labels: d.throttle.map(v => Math.round(v)),
             datasets: [
                 { label: 'Efficiency (kg/W)', data: efficiency, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1.5, yAxisID: 'yEfficiency' },
                 { label: 'Power (W)', data: power, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yPower' },
