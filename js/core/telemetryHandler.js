@@ -78,6 +78,29 @@ export function handleTelemetry(event) {
         }
     } catch (err) {
         console.warn('Received non-JSON telemetry:', data, err);
+        resetTelemetryToNA();
+    }
+}
+
+/**
+ * Resets all live telemetry display elements to N/A.
+ * Called on parse failure or disconnection.
+ */
+export function resetTelemetryToNA() {
+    const ids = [
+        ['voltageMetric',   'analizeVoltage'],
+        ['currentMetric',   'analizeCurrent'],
+        ['powerMetric',     'analizePower'],
+        ['rpmMetric',       'analizeRpm'],
+        ['thrustMetric',    'analizeThrust'],
+        ['escTempMetric',   'analizeEscTemp'],
+        ['motorTempMetric', 'analizeMotorTemp'],
+    ];
+    for (const [ctrlId, analizeId] of ids) {
+        const el = document.getElementById(ctrlId);
+        if (el) el.textContent = 'N/A';
+        const el2 = document.getElementById(analizeId);
+        if (el2) el2.textContent = 'N/A';
     }
 }
 
@@ -106,32 +129,46 @@ function updateTelemetryUI(msg, { voltageMetric, currentMetric, powerMetric, rpm
     if (msg.voltage !== undefined) {
         voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
         updateBatteryIndicator(msg.voltage);
+    } else {
+        voltageMetric.textContent = 'N/A';
     }
     if (msg.current !== undefined) {
         currentMetric.textContent = `${msg.current.toFixed(2)} A`;
         updateCurrentIndicator(msg.current);
+    } else {
+        currentMetric.textContent = 'N/A';
     }
     if (msg.power !== undefined) {
         const power = (msg.voltage !== undefined && msg.current !== undefined)
             ? msg.voltage * msg.current
             : msg.power;
         powerMetric.textContent = `${power.toFixed(2)} W`;
+    } else {
+        powerMetric.textContent = 'N/A';
     }
     if (msg.rpm !== undefined) {
         rpmMetric.textContent = msg.rpm;
         updateRPMIndicator(msg.rpm);
+    } else {
+        rpmMetric.textContent = 'N/A';
     }
-    if (msg.thrust !== undefined) {
+    if (msg.thrust !== undefined && msg.thrust !== null && !isNaN(msg.thrust)) {
         thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
         updateThrustIndicator(msg.thrust);
+    } else {
+        thrustMetric.textContent = 'N/A';
     }
     if (msg.escTemp !== undefined) {
         escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
         updateESCTempIndicator(msg.escTemp);
+    } else {
+        escTempMetric.textContent = 'N/A';
     }
-    if (msg.motorTemp !== undefined) {
+    if (msg.motorTemp !== undefined && msg.motorTemp !== null && !isNaN(msg.motorTemp)) {
         motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
         updateMotorTempIndicator(msg.motorTemp);
+    } else {
+        motorTempMetric.textContent = 'N/A';
     }
 }
 
@@ -147,35 +184,49 @@ function updateAnalizeTabTelemetry(msg) {
     const aET = document.getElementById('analizeEscTemp');
     const aMT = document.getElementById('analizeMotorTemp');
 
-    if (aV && msg.voltage !== undefined) {
-        aV.textContent = `${msg.voltage.toFixed(2)} V`;
-        updateBatteryIndicatorAnalize(msg.voltage);
+    if (aV) {
+        if (msg.voltage !== undefined) {
+            aV.textContent = `${msg.voltage.toFixed(2)} V`;
+            updateBatteryIndicatorAnalize(msg.voltage);
+        } else { aV.textContent = 'N/A'; }
     }
-    if (aC && msg.current !== undefined) {
-        aC.textContent = `${msg.current.toFixed(2)} A`;
-        updateCurrentIndicatorAnalize(msg.current);
+    if (aC) {
+        if (msg.current !== undefined) {
+            aC.textContent = `${msg.current.toFixed(2)} A`;
+            updateCurrentIndicatorAnalize(msg.current);
+        } else { aC.textContent = 'N/A'; }
     }
-    if (aP && msg.power !== undefined) {
-        const power = (msg.voltage !== undefined && msg.current !== undefined)
-            ? msg.voltage * msg.current
-            : msg.power;
-        aP.textContent = `${power.toFixed(2)} W`;
+    if (aP) {
+        if (msg.power !== undefined) {
+            const power = (msg.voltage !== undefined && msg.current !== undefined)
+                ? msg.voltage * msg.current
+                : msg.power;
+            aP.textContent = `${power.toFixed(2)} W`;
+        } else { aP.textContent = 'N/A'; }
     }
-    if (aRPM && msg.rpm !== undefined) {
-        aRPM.textContent = `${msg.rpm}`;
-        updateRPMIndicatorAnalize(msg.rpm);
+    if (aRPM) {
+        if (msg.rpm !== undefined) {
+            aRPM.textContent = `${msg.rpm}`;
+            updateRPMIndicatorAnalize(msg.rpm);
+        } else { aRPM.textContent = 'N/A'; }
     }
-    if (aT && msg.thrust !== undefined) {
-        aT.textContent = `${msg.thrust.toFixed(2)} g`;
-        updateThrustIndicatorAnalize(msg.thrust);
+    if (aT) {
+        if (msg.thrust !== undefined && msg.thrust !== null && !isNaN(msg.thrust)) {
+            aT.textContent = `${msg.thrust.toFixed(2)} g`;
+            updateThrustIndicatorAnalize(msg.thrust);
+        } else { aT.textContent = 'N/A'; }
     }
-    if (aET && msg.escTemp !== undefined) {
-        aET.textContent = `${msg.escTemp.toFixed(1)} °C`;
-        updateESCTempIndicatorAnalize(msg.escTemp);
+    if (aET) {
+        if (msg.escTemp !== undefined) {
+            aET.textContent = `${msg.escTemp.toFixed(1)} °C`;
+            updateESCTempIndicatorAnalize(msg.escTemp);
+        } else { aET.textContent = 'N/A'; }
     }
-    if (aMT && msg.motorTemp !== undefined) {
-        aMT.textContent = `${msg.motorTemp.toFixed(1)} °C`;
-        updateMotorTempIndicatorAnalize(msg.motorTemp);
+    if (aMT) {
+        if (msg.motorTemp !== undefined && msg.motorTemp !== null && !isNaN(msg.motorTemp)) {
+            aMT.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+            updateMotorTempIndicatorAnalize(msg.motorTemp);
+        } else { aMT.textContent = 'N/A'; }
     }
 }
 
