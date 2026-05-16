@@ -104,22 +104,52 @@ export function resetTelemetryToNA() {
     }
 }
 
+const KISS_TELEM_READ_OK_BIT = 1 << 11;
+
+/**
+ * Returns true if the KISS telemetry read was valid in the given message.
+ * Falls back to the last known status when the message has no status field.
+ */
+function isTelemReadOk(msg) {
+    let statusBits;
+    if (msg.status !== undefined) {
+        statusBits = typeof msg.status === 'number' ? msg.status : constructStatusBits(msg);
+    } else if (state.lastRxStatus !== undefined) {
+        const s = state.lastRxStatus;
+        statusBits = typeof s.status === 'number' ? s.status : constructStatusBits(s);
+    } else {
+        return true; // no status info — don't suppress
+    }
+    return !!(statusBits & KISS_TELEM_READ_OK_BIT);
+}
+
 /**
  * Handles 'data' type messages (telemetry data)
  */
 function handleDataMessage(msg, elements) {
     // Store in global state
     state.lastRxData = msg;
-    
-    // Always update telemetry displays (both Control and Analyze tabs)
-    updateTelemetryUI(msg, elements);
-    updateAnalizeTabTelemetry(msg);
-    
-    // Update status indicators if present
+
+    // Update status indicators first so isTelemReadOk reflects the current packet
     if (msg.status !== undefined) {
         state.lastRxStatus = msg;
         updateStatusIndicators(msg.status);
     }
+
+    // When KISS telem read failed, blank out ESC-sourced fields so garbage isn't shown
+    const telemOk = isTelemReadOk(msg);
+    const safeMsg = telemOk ? msg : {
+        ...msg,
+        voltage:  undefined,
+        current:  undefined,
+        power:    undefined,
+        rpm:      undefined,
+        escTemp:  undefined,
+    };
+
+    // Update telemetry displays (both Control and Analyze tabs)
+    updateTelemetryUI(safeMsg, elements);
+    updateAnalizeTabTelemetry(safeMsg);
 }
 
 /**
