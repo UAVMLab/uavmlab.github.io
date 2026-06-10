@@ -78,49 +78,7 @@ export function handleTelemetry(event) {
         }
     } catch (err) {
         console.warn('Received non-JSON telemetry:', data, err);
-        resetTelemetryToNA();
     }
-}
-
-/**
- * Resets all live telemetry display elements to N/A.
- * Called on parse failure or disconnection.
- */
-export function resetTelemetryToNA() {
-    const ids = [
-        ['voltageMetric',   'analizeVoltage'],
-        ['currentMetric',   'analizeCurrent'],
-        ['powerMetric',     'analizePower'],
-        ['rpmMetric',       'analizeRpm'],
-        ['thrustMetric',    'analizeThrust'],
-        ['escTempMetric',   'analizeEscTemp'],
-        ['motorTempMetric', 'analizeMotorTemp'],
-    ];
-    for (const [ctrlId, analizeId] of ids) {
-        const el = document.getElementById(ctrlId);
-        if (el) el.textContent = 'N/A';
-        const el2 = document.getElementById(analizeId);
-        if (el2) el2.textContent = 'N/A';
-    }
-}
-
-const KISS_TELEM_READ_OK_BIT = 1 << 11;
-
-/**
- * Returns true if the KISS telemetry read was valid in the given message.
- * Falls back to the last known status when the message has no status field.
- */
-function isTelemReadOk(msg) {
-    let statusBits;
-    if (msg.status !== undefined) {
-        statusBits = typeof msg.status === 'number' ? msg.status : constructStatusBits(msg);
-    } else if (state.lastRxStatus !== undefined) {
-        const s = state.lastRxStatus;
-        statusBits = typeof s.status === 'number' ? s.status : constructStatusBits(s);
-    } else {
-        return true; // no status info — don't suppress
-    }
-    return !!(statusBits & KISS_TELEM_READ_OK_BIT);
 }
 
 /**
@@ -129,27 +87,17 @@ function isTelemReadOk(msg) {
 function handleDataMessage(msg, elements) {
     // Store in global state
     state.lastRxData = msg;
-
-    // Update status indicators first so isTelemReadOk reflects the current packet
+    state.lastRxTime = Date.now(); // used by the analyze safety watchdog (stale-telemetry abort)
+    
+    // Always update telemetry displays (both Control and Analyze tabs)
+    updateTelemetryUI(msg, elements);
+    updateAnalizeTabTelemetry(msg);
+    
+    // Update status indicators if present
     if (msg.status !== undefined) {
         state.lastRxStatus = msg;
         updateStatusIndicators(msg.status);
     }
-
-    // When KISS telem read failed, blank out ESC-sourced fields so garbage isn't shown
-    const telemOk = isTelemReadOk(msg);
-    const safeMsg = telemOk ? msg : {
-        ...msg,
-        voltage:  undefined,
-        current:  undefined,
-        power:    undefined,
-        rpm:      undefined,
-        escTemp:  undefined,
-    };
-
-    // Update telemetry displays (both Control and Analyze tabs)
-    updateTelemetryUI(safeMsg, elements);
-    updateAnalizeTabTelemetry(safeMsg);
 }
 
 /**
@@ -159,46 +107,29 @@ function updateTelemetryUI(msg, { voltageMetric, currentMetric, powerMetric, rpm
     if (msg.voltage !== undefined) {
         voltageMetric.textContent = `${msg.voltage.toFixed(2)} V`;
         updateBatteryIndicator(msg.voltage);
-    } else {
-        voltageMetric.textContent = 'N/A';
     }
     if (msg.current !== undefined) {
         currentMetric.textContent = `${msg.current.toFixed(2)} A`;
         updateCurrentIndicator(msg.current);
-    } else {
-        currentMetric.textContent = 'N/A';
     }
     if (msg.power !== undefined) {
-        const power = (msg.voltage !== undefined && msg.current !== undefined)
-            ? msg.voltage * msg.current
-            : msg.power;
-        powerMetric.textContent = `${power.toFixed(2)} W`;
-    } else {
-        powerMetric.textContent = 'N/A';
+        powerMetric.textContent = `${msg.power.toFixed(2)} W`;
     }
     if (msg.rpm !== undefined) {
         rpmMetric.textContent = msg.rpm;
         updateRPMIndicator(msg.rpm);
-    } else {
-        rpmMetric.textContent = 'N/A';
     }
-    if (msg.thrust !== undefined && msg.thrust !== null && !isNaN(msg.thrust)) {
+    if (msg.thrust !== undefined) {
         thrustMetric.textContent = `${msg.thrust.toFixed(2)} g`;
         updateThrustIndicator(msg.thrust);
-    } else {
-        thrustMetric.textContent = 'N/A';
     }
     if (msg.escTemp !== undefined) {
         escTempMetric.textContent = `${msg.escTemp.toFixed(1)} °C`;
         updateESCTempIndicator(msg.escTemp);
-    } else {
-        escTempMetric.textContent = 'N/A';
     }
-    if (msg.motorTemp !== undefined && msg.motorTemp !== null && !isNaN(msg.motorTemp)) {
+    if (msg.motorTemp !== undefined) {
         motorTempMetric.textContent = `${msg.motorTemp.toFixed(1)} °C`;
         updateMotorTempIndicator(msg.motorTemp);
-    } else {
-        motorTempMetric.textContent = 'N/A';
     }
 }
 
@@ -214,49 +145,32 @@ function updateAnalizeTabTelemetry(msg) {
     const aET = document.getElementById('analizeEscTemp');
     const aMT = document.getElementById('analizeMotorTemp');
 
-    if (aV) {
-        if (msg.voltage !== undefined) {
-            aV.textContent = `${msg.voltage.toFixed(2)} V`;
-            updateBatteryIndicatorAnalize(msg.voltage);
-        } else { aV.textContent = 'N/A'; }
+    if (aV && msg.voltage !== undefined) {
+        aV.textContent = `${msg.voltage.toFixed(2)} V`;
+        updateBatteryIndicatorAnalize(msg.voltage);
     }
-    if (aC) {
-        if (msg.current !== undefined) {
-            aC.textContent = `${msg.current.toFixed(2)} A`;
-            updateCurrentIndicatorAnalize(msg.current);
-        } else { aC.textContent = 'N/A'; }
+    if (aC && msg.current !== undefined) {
+        aC.textContent = `${msg.current.toFixed(2)} A`;
+        updateCurrentIndicatorAnalize(msg.current);
     }
-    if (aP) {
-        if (msg.power !== undefined) {
-            const power = (msg.voltage !== undefined && msg.current !== undefined)
-                ? msg.voltage * msg.current
-                : msg.power;
-            aP.textContent = `${power.toFixed(2)} W`;
-        } else { aP.textContent = 'N/A'; }
+    if (aP && msg.power !== undefined) {
+        aP.textContent = `${msg.power.toFixed(2)} W`;
     }
-    if (aRPM) {
-        if (msg.rpm !== undefined) {
-            aRPM.textContent = `${msg.rpm}`;
-            updateRPMIndicatorAnalize(msg.rpm);
-        } else { aRPM.textContent = 'N/A'; }
+    if (aRPM && msg.rpm !== undefined) {
+        aRPM.textContent = `${msg.rpm}`;
+        updateRPMIndicatorAnalize(msg.rpm);
     }
-    if (aT) {
-        if (msg.thrust !== undefined && msg.thrust !== null && !isNaN(msg.thrust)) {
-            aT.textContent = `${msg.thrust.toFixed(2)} g`;
-            updateThrustIndicatorAnalize(msg.thrust);
-        } else { aT.textContent = 'N/A'; }
+    if (aT && msg.thrust !== undefined) {
+        aT.textContent = `${msg.thrust.toFixed(2)} g`;
+        updateThrustIndicatorAnalize(msg.thrust);
     }
-    if (aET) {
-        if (msg.escTemp !== undefined) {
-            aET.textContent = `${msg.escTemp.toFixed(1)} °C`;
-            updateESCTempIndicatorAnalize(msg.escTemp);
-        } else { aET.textContent = 'N/A'; }
+    if (aET && msg.escTemp !== undefined) {
+        aET.textContent = `${msg.escTemp.toFixed(1)} °C`;
+        updateESCTempIndicatorAnalize(msg.escTemp);
     }
-    if (aMT) {
-        if (msg.motorTemp !== undefined && msg.motorTemp !== null && !isNaN(msg.motorTemp)) {
-            aMT.textContent = `${msg.motorTemp.toFixed(1)} °C`;
-            updateMotorTempIndicatorAnalize(msg.motorTemp);
-        } else { aMT.textContent = 'N/A'; }
+    if (aMT && msg.motorTemp !== undefined) {
+        aMT.textContent = `${msg.motorTemp.toFixed(1)} °C`;
+        updateMotorTempIndicatorAnalize(msg.motorTemp);
     }
 }
 

@@ -31,7 +31,6 @@ import {
     rememberDevice as coreRememberDevice, 
     setDeviceId as coreSetDeviceId 
 } from '../../../core/bleConnection.js';
-import { resetTelemetryToNA } from '../../../core/telemetryHandler.js';
 
 // ==================================================================================================== //
 
@@ -127,7 +126,6 @@ function onDisconnected() {
     
     // Call core disconnection handler
     handleDisconnection();
-    resetTelemetryToNA();
     
     if (deviceNameDisplay) {
         deviceNameDisplay.textContent = 'Device: N/A';

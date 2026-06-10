@@ -9,6 +9,12 @@ import { state } from '../../../state.js';
 import { appendLog } from '../../../utils/logUtils.js';
 import { sendCommand } from '../../../utils/bluetooth.js';
 import { getCurrentActiveProfile } from '../profileTab/profilesTab.js';
+import {
+    linearRegression, smoothCentered, decimateForDisplay,
+    aggregateSweepSteps, findPeakEfficiency,
+    computeIRFromPulses, computeKV, computeStepMetrics, computeEnduranceMetrics,
+    decimateRunForStorage
+} from './analysisMath.js';
 
 
 
@@ -55,37 +61,7 @@ function getUnit(metric) {
     return units[metric] || '';
 }
 
-// Centered smoothing (non-causal, minimal lag)
-// Default window=11 gives a ~550 ms smoothing envelope at 20 Hz sample rate
-function smoothCentered(arr, windowSize = 11) {
-    if (!arr || arr.length === 0) return [];
-    const half = Math.floor(windowSize / 2);
-    const out = new Array(arr.length);
-    for (let i = 0; i < arr.length; i++) {
-        const start = Math.max(0, i - half);
-        const end = Math.min(arr.length - 1, i + half);
-        let sum = 0;
-        for (let j = start; j <= end; j++) sum += arr[j];
-        out[i] = sum / (end - start + 1);
-    }
-    return out;
-}
 
-// Bin-averaging decimation: reduces arr to maxPts by averaging groups of consecutive samples.
-// The averaging acts as a low-pass anti-aliasing filter before Chart.js renders.
-function decimateForDisplay(arr, maxPts) {
-    if (!arr || arr.length <= maxPts) return arr.slice();
-    const n = arr.length;
-    const out = new Array(maxPts);
-    for (let i = 0; i < maxPts; i++) {
-        const start = Math.floor(i * n / maxPts);
-        const end   = Math.floor((i + 1) * n / maxPts);
-        let sum = 0;
-        for (let j = start; j < end; j++) sum += arr[j];
-        out[i] = sum / (end - start);
-    }
-    return out;
-}
 
 // Decimates all numeric channels in a raw data snapshot to at most maxPts display points.
 // Returns a new shallow-copy object — the original state.analysis.data is never mutated.
@@ -193,6 +169,11 @@ async function startAnalyze(mode, params) {
     // Start data collection timer - will be triggered after first throttle command
     let dataCollectionStarted = false;
     let startTime = null;
+    let limitStrikes = 0; // consecutive violations needed before abort (noise immunity)
+    const SAFETY_STRIKES = 4;            // 4 x 50 ms = 200 ms of sustained violation
+    const TELEMETRY_STALE_MS = 1500;     // abort if no fresh telemetry for this long
+    const safetyProfile = getCurrentActiveProfile();
+
     dataInterval = setInterval(() => {
         if (!state.analysis.running || !dataCollectionStarted) return;
         const now = (Date.now() - startTime) / 1000.0;
@@ -200,14 +181,57 @@ async function startAnalyze(mode, params) {
         const d = state.analysis.data;
         d.timestamps.push(now);
         d.throttle.push(parseFloat(currentThrottle.toFixed(2)));
-        d.voltage.push(tel.voltage || 0);
-        d.current.push(tel.current || 0);
-        d.power.push((tel.voltage || 0) * (tel.current || 0));
+        // 3 / 2 decimals: 0.1 V / 0.1 A quantization is too coarse for the
+        // IR measurement (pulse dV is typically 0.2-0.5 V).
+        d.voltage.push(parseFloat((tel.voltage || 0).toFixed(3)));
+        d.current.push(parseFloat((tel.current || 0).toFixed(2)));
+        d.power.push(parseFloat((tel.power || 0).toFixed(1)));
         d.rpm.push(Math.round(tel.rpm || 0));
         d.thrust.push(parseFloat(((tel.thrust || 0) / 1000).toFixed(2)));
         d.escTemp.push(parseFloat((tel.escTemp || 0).toFixed(1)));
         d.motorTemp.push(parseFloat((tel.motorTemp || 0).toFixed(1)));
+
+        // ---- Safety watchdog ----
+        // 1. Telemetry staleness: spinning a prop blind is not acceptable.
+        if (state.lastRxTime && (Date.now() - state.lastRxTime) > TELEMETRY_STALE_MS) {
+            triggerSafetyAbort('Telemetry lost (stale > 1.5 s)');
+            return;
+        }
+        // 2. Profile hard limits (0 = limit disabled).
+        let violation = null;
+        if (safetyProfile) {
+            if (safetyProfile.maxCurrent > 0 && tel.current > safetyProfile.maxCurrent) {
+                violation = `Current ${tel.current.toFixed(1)} A > limit ${safetyProfile.maxCurrent} A`;
+            } else if (safetyProfile.maxESCTemp > 0 && tel.escTemp > safetyProfile.maxESCTemp) {
+                violation = `ESC temp ${tel.escTemp.toFixed(0)} °C > limit ${safetyProfile.maxESCTemp} °C`;
+            } else if (safetyProfile.maxMotorTemp > 0 && tel.motorTemp > safetyProfile.maxMotorTemp) {
+                violation = `Motor temp ${tel.motorTemp.toFixed(0)} °C > limit ${safetyProfile.maxMotorTemp} °C`;
+            }
+        }
+        if (violation) {
+            limitStrikes++;
+            if (limitStrikes >= SAFETY_STRIKES) triggerSafetyAbort(violation);
+        } else {
+            limitStrikes = 0;
+        }
     }, 50); // 20 Hz — 4× resolution for smooth graphs
+
+    // Safety abort: stop the test loop and ramp the throttle down immediately.
+    let safetyAborting = false;
+    function triggerSafetyAbort(reason) {
+        if (safetyAborting) return;
+        safetyAborting = true;
+        state.analysis.lastError = `SAFETY ABORT: ${reason}`;
+        state.analysis.running = false; // breaks all mode loops
+        appendLog(`SAFETY ABORT: ${reason}`);
+        setAnalizeStatusMessage(`SAFETY ABORT: ${reason}`, 'error');
+        // mark measurement end and ramp down without waiting for the mode loop
+        window._markDataEnd && window._markDataEnd();
+        const prof = getCurrentActiveProfile();
+        const armRaw = prof ? prof.armThrottle : DEFAULT_ARM_THROTTLE;
+        const armPercent = ((armRaw - 48) / (2047 - 48)) * 100;
+        rampThrottle(currentThrottle, armPercent, 1500).catch(() => {});
+    }
 
     // Function to mark measurement end (call before ramp-down so ramp-down data is excluded from charts)
     window._markDataEnd = () => {
@@ -249,19 +273,30 @@ async function startAnalyze(mode, params) {
 
         // render and save history if data exists
         if (state.analysis.data && state.analysis.data.timestamps.length) {
+            // ---- post-run computed metrics (pure functions, mode-specific) ----
+            let results = null;
+            try { results = computeRunResults(state.analysis.mode, state.analysis.data, params); } catch (e) { appendLog(`Result computation error: ${e.message}`); }
+            state.analysis.lastResults = results;
+
             renderGraphs(state.analysis.mode, state.analysis.data);
+            renderResultsSummary(state.analysis.mode, results);
+
             state.analysis.history = state.analysis.history || [];
-            // Save params and profile used for this run
+            // Save params and profile used for this run.
+            // Data is decimated before persisting: a 10-min endurance run at 20 Hz
+            // (~12k samples x 9 channels x 10 entries) would blow the localStorage quota.
             const profile = getCurrentActiveProfile();
             state.analysis.history.push({
                 mode: state.analysis.mode,
-                data: state.analysis.data,
+                data: decimateRunForStorage(state.analysis.data, 600),
                 params: params,
                 profile: profile,
+                results: results,
                 timestamp: Date.now()
             });
             if (state.analysis.history.length > MAX_HISTORY) state.analysis.history.shift();
-            try { localStorage.setItem('analyzeHistory', JSON.stringify(state.analysis.history)); } catch (e) {}
+            saveHistory();
+            refreshCompareSelect();
         }
 
         // free data reference (to avoid accidental reuse)
@@ -289,6 +324,231 @@ async function stopAnalyze() {
     state.analysis.stopping = false;
     setAnalizeStatusMessage(`${mode} analyze stopped`, 'info');
     updateAnalizeControlsEnabled(false);
+}
+
+// -----------------------------------------------------------------------------
+// Post-run computed results, summary panel, history persistence, comparison
+// -----------------------------------------------------------------------------
+
+function saveHistory() {
+    try {
+        localStorage.setItem('analyzeHistory', JSON.stringify(state.analysis.history));
+    } catch (e) {
+        // Quota exceeded: evict oldest entries until it fits.
+        while (state.analysis.history.length > 1) {
+            state.analysis.history.shift();
+            try {
+                localStorage.setItem('analyzeHistory', JSON.stringify(state.analysis.history));
+                return;
+            } catch (e2) { /* keep evicting */ }
+        }
+        appendLog('Warning: could not persist run history (storage quota)');
+    }
+}
+
+// Mode-specific computed metrics, all from pure analysisMath functions.
+function computeRunResults(mode, data, params = {}) {
+    const profile = getCurrentActiveProfile() || {};
+    const cells = profile.batteryCellCount || 0;
+    switch (mode) {
+        case 'ir': {
+            const r = computeIRFromPulses(data, { cells });
+            if (r.ohms !== null) {
+                state.analysis.lastIR = r.ohms;
+                state.analysis.lastIR_R2 = r.r2;
+            }
+            return { type: 'ir', ...r };
+        }
+        case 'kv': {
+            const r = computeKV({
+                meanVoltage: data.meanVoltage || [],
+                meanRPM: data.meanRPM || [],
+                meanCurrent: data.meanCurrent || [],
+                throttlePercent: data.kvThrottle !== undefined ? data.kvThrottle : (params.throttle || 100),
+                resistance: state.analysis.lastIR || 0
+            });
+            if (r.kv !== null) {
+                state.analysis.lastKV = r.kv;
+                state.analysis.lastKV_R2 = r.r2;
+            }
+            return { type: 'kv', ...r, irUsed: state.analysis.lastIR || 0 };
+        }
+        case 'step':
+            return { type: 'step', ...computeStepMetrics(data) };
+        case 'endurance':
+        case 'thermal':
+            return { type: 'endurance', ...computeEnduranceMetrics(data) };
+        case 'sweep':
+        case 'mapping':
+        case 'efficiency': {
+            const minDurationS = Math.max(0.5, 0.6 * (params.dwell || 1));
+            const agg = aggregateSweepSteps(data, { minDurationS });
+            const peak = findPeakEfficiency(agg);
+            const maxThrust = agg.thrust.length ? Math.max(...agg.thrust) : 0;
+            const maxPower = agg.power.length ? Math.max(...agg.power) : 0;
+            return { type: 'sweep', agg, peak, maxThrustKg: maxThrust, maxPowerW: maxPower };
+        }
+        default:
+            return null;
+    }
+}
+
+// Small summary panel below the chart with the numbers users actually need.
+function ensureSummaryEl() {
+    let el = document.getElementById('analysisSummary');
+    if (!el) {
+        const container = document.getElementById('analyzeChartContainer')
+            || (document.getElementById('analyzeChart') && document.getElementById('analyzeChart').parentElement);
+        if (!container) return null;
+        el = document.createElement('div');
+        el.id = 'analysisSummary';
+        el.style = 'margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(20,158,202,0.08);font-size:0.85em;line-height:1.5;';
+        container.insertAdjacentElement('afterend', el);
+    }
+    return el;
+}
+
+function renderResultsSummary(mode, results) {
+    const el = ensureSummaryEl();
+    if (!el) return;
+    if (!results) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const f = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? 'n/a' : Number(v).toFixed(d);
+    let html = '';
+    if (results.type === 'ir') {
+        html = `<strong>Battery internal resistance:</strong> ${results.ohms !== null ? (results.ohms * 1000).toFixed(1) + ' mΩ' : 'n/a'}`
+            + (results.perCell !== null ? ` (${(results.perCell * 1000).toFixed(1)} mΩ/cell)` : '')
+            + ` · R² = ${f(results.r2, 3)} · ${results.points.length} pulse pairs`;
+    } else if (results.type === 'kv') {
+        html = `<strong>KV (duty- and IR-corrected):</strong> ${f(results.kv, 0)} RPM/V · R² = ${f(results.r2, 4)}`
+            + (results.irUsed ? ` · using R = ${(results.irUsed * 1000).toFixed(1)} mΩ` : ' · <em>no IR measured — run the IR test first for best accuracy</em>');
+    } else if (results.type === 'step' && results.avg) {
+        html = `<strong>Step response (${results.avg.count} cycles):</strong> rise time ${f(results.avg.riseTime * 1000, 0)} ms (10–90%)`
+            + ` · settling ${f(results.avg.settlingTime * 1000, 0)} ms (±5%)`
+            + ` · overshoot ${f(results.avg.overshootPct, 1)}%`
+            + (results.avg.latency ? ` · latency ${f(results.avg.latency * 1000, 0)} ms` : '');
+    } else if (results.type === 'endurance' && results.consumedmAh !== undefined) {
+        html = `<strong>Run totals:</strong> ${f(results.consumedmAh, 0)} mAh · ${f(results.consumedWh, 2)} Wh`
+            + ` · voltage sag ${f(results.voltageSag, 2)} V · thrust decay ${f(results.thrustDecayPct, 1)}%`
+            + (results.thermal ? ` · thermal: τ = ${f(results.thermal.tau, 0)} s, projected steady-state ${f(results.thermal.tInf, 0)} °C (R²=${f(results.thermal.r2, 2)})` : '');
+    } else if (results.type === 'sweep') {
+        html = `<strong>Max thrust:</strong> ${f(results.maxThrustKg, 2)} kg · <strong>max power:</strong> ${f(results.maxPowerW, 0)} W`
+            + (results.peak ? ` · <strong>peak efficiency:</strong> ${f(results.peak.gPerW, 2)} g/W at ${f(results.peak.throttle, 0)}% throttle (${f(results.peak.thrustKg, 2)} kg @ ${f(results.peak.powerW, 0)} W)` : '');
+    } else {
+        el.style.display = 'none';
+        return;
+    }
+    el.innerHTML = html;
+}
+
+// ---- Run comparison (e.g. propeller A vs propeller B) ----
+function ensureCompareSelect() {
+    let sel = document.getElementById('compareRunSelect');
+    if (sel) return sel;
+    const anchor = document.getElementById('graphMetricSelect') || document.getElementById('exportDataButton');
+    if (!anchor) return null;
+    const wrap = document.createElement('div');
+    wrap.style = 'margin:6px 0;display:flex;align-items:center;gap:6px;font-size:0.85em;';
+    const label = document.createElement('label');
+    label.textContent = 'Compare with:';
+    label.htmlFor = 'compareRunSelect';
+    sel = document.createElement('select');
+    sel.id = 'compareRunSelect';
+    sel.style = 'flex:1;min-width:0;';
+    wrap.appendChild(label);
+    wrap.appendChild(sel);
+    anchor.insertAdjacentElement('afterend', wrap);
+    sel.addEventListener('change', () => {
+        const hist = state.analysis.history || [];
+        if (!hist.length) return;
+        const current = hist[hist.length - 1];
+        const idx = parseInt(sel.value, 10);
+        if (Number.isNaN(idx) || idx < 0) {
+            renderGraphs(current.mode, current.data);
+            renderResultsSummary(current.mode, current.results);
+            return;
+        }
+        const other = hist[idx];
+        if (other) renderComparison(current, other);
+    });
+    return sel;
+}
+
+const SWEEP_FAMILY = ['sweep', 'mapping', 'efficiency'];
+
+function refreshCompareSelect() {
+    const sel = ensureCompareSelect();
+    if (!sel) return;
+    const hist = state.analysis.history || [];
+    const opts = ['<option value="-1">— none (current run only) —</option>'];
+    hist.forEach((h, i) => {
+        if (i === hist.length - 1) return; // skip current run
+        if (!SWEEP_FAMILY.includes(h.mode)) return;
+        const when = new Date(h.timestamp).toLocaleString();
+        const prof = h.profile ? `${h.profile.profileName || ''} ${h.profile.propDiameter || ''}x${h.profile.propPitch || ''}` : '';
+        opts.push(`<option value="${i}">#${i + 1} ${h.mode} · ${prof} · ${when}</option>`);
+    });
+    sel.innerHTML = opts.join('');
+    sel.value = '-1';
+    if (sel.parentElement) sel.parentElement.style.display = (opts.length > 1 && SWEEP_FAMILY.includes((hist[hist.length - 1] || {}).mode)) ? 'flex' : 'none';
+}
+
+// Overlay thrust, current and efficiency vs throttle for two sweep-family runs.
+function renderComparison(runA, runB) {
+    if (!SWEEP_FAMILY.includes(runA.mode) || !SWEEP_FAMILY.includes(runB.mode)) {
+        appendLog('Comparison is only available between sweep / mapping / efficiency runs');
+        return;
+    }
+    const ctx = resetChartCtx();
+    const fontSizes = getChartFontSizes();
+    const aggA = aggregateSweepSteps(runA.data);
+    const aggB = aggregateSweepSteps(runB.data);
+    const nameOf = run => {
+        const p = run.profile || {};
+        return `${p.profileName || run.mode}${p.propDiameter ? ` ${p.propDiameter}x${p.propPitch}` : ''}`;
+    };
+    const toXY = (agg, ch) => agg.throttle.map((thr, i) => ({ x: thr, y: agg[ch][i] }));
+    const mk = (label, agg, ch, color, dash, axis) => ({
+        label, data: toXY(agg, ch), borderColor: color, backgroundColor: color,
+        borderDash: dash, showLine: true, pointRadius: 2, borderWidth: 1.5, yAxisID: axis, fill: false
+    });
+    chartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                mk(`A: ${nameOf(runA)} — Thrust (kg)`, aggA, 'thrust', '#27ae60', [], 'yThrust'),
+                mk(`B: ${nameOf(runB)} — Thrust (kg)`, aggB, 'thrust', '#27ae60', [6, 4], 'yThrust'),
+                mk(`A — Efficiency (g/W)`, aggA, 'efficiencyGW', '#e67e22', [], 'yEff'),
+                mk(`B — Efficiency (g/W)`, aggB, 'efficiencyGW', '#e67e22', [6, 4], 'yEff'),
+                mk(`A — Current (A)`, aggA, 'current', '#3498db', [], 'yCur'),
+                mk(`B — Current (A)`, aggB, 'current', '#3498db', [6, 4], 'yCur')
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { size: fontSizes.legend }, boxWidth: fontSizes.boxWidth, padding: fontSizes.padding } },
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} @ ${c.parsed.x.toFixed(0)}%` } }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
+                yThrust: { position: 'left', title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' }, ticks: { color: '#27ae60', font: { size: fontSizes.ticks } } },
+                yEff: { position: 'right', title: { display: true, text: 'Efficiency (g/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
+                yCur: { position: 'right', title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { color: '#3498db', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+    // side-by-side numeric comparison
+    const el = ensureSummaryEl();
+    if (el) {
+        const pA = findPeakEfficiency(aggA), pB = findPeakEfficiency(aggB);
+        const maxT = agg => agg.thrust.length ? Math.max(...agg.thrust) : 0;
+        el.style.display = 'block';
+        el.innerHTML = `<strong>A (${nameOf(runA)}):</strong> max thrust ${maxT(aggA).toFixed(2)} kg`
+            + (pA ? `, peak ${pA.gPerW.toFixed(2)} g/W @ ${pA.throttle.toFixed(0)}%` : '')
+            + `<br><strong>B (${nameOf(runB)}):</strong> max thrust ${maxT(aggB).toFixed(2)} kg`
+            + (pB ? `, peak ${pB.gPerW.toFixed(2)} g/W @ ${pB.throttle.toFixed(0)}%` : '');
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -323,19 +583,25 @@ async function runThrottleSweep(params) {
 }
 
 async function runStepResponse(params) {
-    const { lowThrottle = 10, highThrottle = 60, onDuration = 3, offDuration = 3, cycles = 5, rampRate = 100 } = params;
+    const { lowThrottle = 10, highThrottle = 60, onDuration = 3, offDuration = 3, cycles = 5, rampRate = 100, instantStep = 1 } = params;
+    // instantStep=1 (default): a single throttle command per transition.
+    // The old behavior ramped through 25 sub-steps, which low-pass filters the
+    // command and makes rise-time / latency measurements meaningless.
+    const transition = async (from, to) => {
+        if (instantStep) await sendThrottle(to);
+        else await rampThrottle(from, to, Math.abs(to - from) / rampRate * 1000);
+    };
     for (let cycle = 0; cycle < cycles && state.analysis.running; cycle++) {
         updateProgress(((cycle + 1) / cycles) * 100, `${cycle + 1}/${cycles}`);
-        // ramp to high
-        await rampThrottle(lowThrottle, highThrottle, Math.abs(highThrottle - lowThrottle) / rampRate * 1000);
+        await transition(lowThrottle, highThrottle);
         if (!state.analysis.running) break;
         await new Promise(r => setTimeout(r, onDuration * 1000));
         if (!state.analysis.running) break;
-        // ramp to low
-        await rampThrottle(highThrottle, lowThrottle, Math.abs(highThrottle - lowThrottle) / rampRate * 1000);
+        await transition(highThrottle, lowThrottle);
         if (!state.analysis.running) break;
         await new Promise(r => setTimeout(r, offDuration * 1000));
     }
+    window._markDataEnd && window._markDataEnd();
     if (state.analysis.running) updateProgress(100, `Completed ${cycles} cycles`);
 }
 
@@ -393,6 +659,8 @@ async function runKVEstimation(params) {
     // voltageSteps: number of voltage points to measure (user sets voltage externally)
     state.analysis.data.meanVoltage = [];
     state.analysis.data.meanRPM = [];
+    state.analysis.data.meanCurrent = [];
+    state.analysis.data.kvThrottle = throttle; // duty for KV correction
     await sendThrottle(throttle);
     for (let s = 0; s < voltageSteps && state.analysis.running; s++) {
         updateProgress((s / Math.max(1, voltageSteps - 1)) * 100, `Step ${s + 1}/${voltageSteps}`);
@@ -422,15 +690,17 @@ async function runKVEstimation(params) {
         const dwellStart = Date.now();
         while ((Date.now() - dwellStart) < dwell * 1000 && state.analysis.running) {
             const last = state.lastRxData || {};
-            dwellSamples.push({ voltage: last.voltage || 0, rpm: last.rpm || 0 });
+            dwellSamples.push({ voltage: last.voltage || 0, rpm: last.rpm || 0, current: last.current || 0 });
             await new Promise(r => setTimeout(r, 100)); // sample every 100ms
         }
         // Compute mean voltage and rpm for this dwell
         const n = dwellSamples.length;
         const meanVoltage = n ? dwellSamples.reduce((sum, s) => sum + s.voltage, 0) / n : 0;
         const meanRPM = n ? dwellSamples.reduce((sum, s) => sum + s.rpm, 0) / n : 0;
+        const meanCurrent = n ? dwellSamples.reduce((sum, s) => sum + s.current, 0) / n : 0;
         state.analysis.data.meanVoltage.push(meanVoltage);
         state.analysis.data.meanRPM.push(meanRPM);
+        state.analysis.data.meanCurrent.push(meanCurrent);
         // optional: check current ceiling and abort if exceeded
         const last = state.lastRxData || {};
         if (last.current && last.current > currentCeiling) {
@@ -464,11 +734,26 @@ async function runThermalStress(params) {
 }
 
 async function runMappingTest(params) {
-    const { repeats = 3, ambientTemp = 25, notes = '' } = params;
+    // Sweep parameters are now user-configurable (previously hardcoded 10-80%/10%)
+    // and a real cooldown pause is inserted between repeats, as the mode
+    // description always claimed. ambientTemp and notes are persisted with the
+    // run (history + CSV/JSON metadata).
+    const {
+        repeats = 3, ambientTemp = 25, notes = '',
+        startThrottle = 10, endThrottle = 80, stepSize = 10, dwell = 2,
+        cooldownBetween = 30
+    } = params;
     for (let i = 0; i < repeats && state.analysis.running; i++) {
-        updateProgress(((i + 1) / repeats) * 100, `${i + 1}/${repeats}`);
-        // Use a standard sweep for mapping
-        await runThrottleSweep({ startThrottle: 10, endThrottle: 80, stepSize: 10, dwell: 2, rampRate: 20, repeats: 1 });
+        updateProgress((i / repeats) * 100, `Run ${i + 1}/${repeats}`);
+        await runThrottleSweep({ startThrottle, endThrottle, stepSize, dwell, rampRate: 20, repeats: 1 });
+        if (!state.analysis.running) break;
+        // cooldown between runs (skip after the last one)
+        if (i < repeats - 1 && cooldownBetween > 0) {
+            for (let s = 0; s < cooldownBetween && state.analysis.running; s++) {
+                updateProgress(((i + 1) / repeats) * 100, `Cooldown ${s + 1}/${cooldownBetween} s before run ${i + 2}`);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
     }
     if (state.analysis.running) updateProgress(100, 'Mapping test completed');
 }
@@ -522,37 +807,6 @@ function updateProgress(percent, text = '') {
 // Graphing system: dispatcher + mode-specific renderers (Chart.js assumed available)
 // -----------------------------------------------------------------------------
 
-function linearRegression(points) {
-    const n = points.length;
-    if (n < 2) return null;
-
-    let sumX = 0, sumY = 0;
-    let sumXY = 0, sumXX = 0;
-
-    for (const p of points) {
-        sumX += p.x;
-        sumY += p.y;
-        sumXY += p.x * p.y;
-        sumXX += p.x * p.x;
-    }
-
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-
-    // compute R²
-    let ssTot = 0, ssRes = 0;
-    const meanY = sumY / n;
-
-    for (const p of points) {
-        const yFit = slope * p.x + intercept;
-        ssRes += Math.pow(p.y - yFit, 2);
-        ssTot += Math.pow(p.y - meanY, 2);
-    }
-
-    const r2 = 1 - ssRes / ssTot;
-
-    return { slope, intercept, r2 };
-}
 
 
 function destroyChart() {
@@ -938,65 +1192,48 @@ function getChartFontSizes() {
     };
 }
 
-// Sweep: throttle on X -> scatter/line for RPM, Thrust, Current (overlaid)
+// Sweep: steady-state mean per throttle step on a LINEAR axis.
+// Previously this plotted every 20 Hz sample (including ramp transients)
+// against a category axis of raw throttle values - transients polluted the
+// curve and point spacing was wrong. Efficiency is now reported in g/W.
 function renderSweepGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
-    const d = prepareDataForRender(data); // decimate to ≤500 pts for Chart.js performance
-
-    const rpm     = smoothCentered(d.rpm,     11);
-    const thrust  = smoothCentered(d.thrust,  11);
-    const current = smoothCentered(d.current, 11);
-    const voltage = smoothCentered(d.voltage, 11);
-    
-    // Calculate efficiency metrics
-    const powerEfficiency = thrust.map((t, i) => {
-        const power = voltage[i] * current[i];
-        return power > 0 ? t / power : 0; // kg/W (thrust efficiency)
+    const agg = aggregateSweepSteps(data);
+    if (!agg.throttle.length) {
+        // fallback for degenerate runs: render raw time series
+        renderStepGraphs(data);
+        return;
+    }
+    const toXY = ch => agg.throttle.map((thr, i) => ({ x: thr, y: agg[ch][i] }));
+    const mk = (label, ch, color, axis) => ({
+        label, data: toXY(ch), borderColor: color, backgroundColor: color,
+        showLine: true, pointRadius: 2.5, borderWidth: 1.5, yAxisID: axis, fill: false
     });
-    const thrustPerWatt = powerEfficiency; // kg/W
-
     chartInstance = new Chart(ctx, {
-        type: 'line',
+        type: 'scatter',
         data: {
-            labels: d.throttle.map(v => Math.round(v)),
             datasets: [
-                { label: 'RPM', data: rpm, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yRPM' },
-                { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
-                { label: 'Current (A)', data: current, borderColor: '#3498db', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yCurrent' },
-                { label: 'Voltage (V)', data: voltage, borderColor: '#9b59b6', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yVoltage' },
-                { label: 'Efficiency (kg/W)', data: thrustPerWatt, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yEfficiency' }
+                mk('RPM', 'rpm', '#e74c3c', 'yRPM'),
+                mk('Thrust (kg)', 'thrust', '#27ae60', 'yThrust'),
+                mk('Current (A)', 'current', '#3498db', 'yCurrent'),
+                mk('Voltage (V)', 'voltage', '#9b59b6', 'yVoltage'),
+                mk('Efficiency (g/W)', 'efficiencyGW', '#e67e22', 'yEfficiency')
             ]
         },
         options: {
             responsive: true,
-            plugins: { 
-                legend: { 
+            plugins: {
+                legend: {
                     position: 'bottom',
-                    labels: { 
-                        font: { size: fontSizes.legend },
-                        boxWidth: fontSizes.boxWidth,
-                        boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding,
-                        textAlign: 'center',
-                        usePointStyle: false
-                    },
+                    labels: { font: { size: fontSizes.legend }, boxWidth: fontSizes.boxWidth, boxHeight: fontSizes.boxHeight, padding: fontSizes.padding, textAlign: 'center', usePointStyle: false },
                     onClick: (e, legendItem, legend) => {
                         const index = legendItem.datasetIndex;
                         const chart = legend.chart;
-                        
-                        // Use Chart.js native toggle behavior
                         Chart.defaults.plugins.legend.onClick.call(legend, e, legendItem, legend);
-                        
-                        // Additionally toggle the corresponding y-axis
                         const meta = chart.getDatasetMeta(index);
-                        const dataset = chart.data.datasets[index];
-                        const yAxisID = dataset.yAxisID;
-                        
-                        if (yAxisID && chart.options.scales[yAxisID]) {
-                            chart.options.scales[yAxisID].display = !meta.hidden;
-                        }
-                        
+                        const yAxisID = chart.data.datasets[index].yAxisID;
+                        if (yAxisID && chart.options.scales[yAxisID]) chart.options.scales[yAxisID].display = !meta.hidden;
                         chart.update();
                     }
                 },
@@ -1004,84 +1241,21 @@ function renderSweepGraphs(data) {
                     bodyFont: { size: fontSizes.tooltip },
                     titleFont: { size: fontSizes.tooltip },
                     callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.dataset.label === 'RPM') {
-                                label += Math.round(context.parsed.y);
-                            } else if (context.dataset.label && context.dataset.label.includes('Throttle')) {
-                                label += context.parsed.y.toFixed(2);
-                            } else if (context.dataset.label && context.dataset.label.includes('Thrust')) {
-                                label += context.parsed.y.toFixed(2);
-                            } else if (context.dataset.label && context.dataset.label.includes('Efficiency')) {
-                                label += context.parsed.y.toFixed(3);
-                            } else {
-                                label += context.parsed.y.toFixed(1);
-                            }
-                            return label;
-                        }
+                        label: c => `${c.dataset.label}: ${formatChartValue(c.dataset.label, c.parsed.y)} @ ${c.parsed.x.toFixed(1)}%`
                     }
                 }
             },
             scales: {
-                x: { 
-                    title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } },
-                    ticks: { font: { size: fontSizes.ticks } }
+                x: { type: 'linear', title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks }, callback: v => Math.round(v) } },
+                yRPM: {
+                    type: 'linear', position: 'left',
+                    title: { display: true, text: 'RPM (x10\u00b3)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' },
+                    ticks: { font: { size: fontSizes.ticks }, color: '#e74c3c', callback: v => (v / 1000).toFixed(1) }
                 },
-                yRPM: { 
-                    type: 'linear', 
-                    position: 'left', 
-                    title: { display: true, text: 'RPM (×10³)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' },
-                    ticks: {
-                        font: { size: fontSizes.ticks },
-                        color: '#e74c3c',
-                        callback: function(value) {
-                            return (value / 1000).toFixed(1);
-                        }
-                    }
-                },
-                yThrust: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' },
-                    ticks: { 
-                        font: { size: fontSizes.ticks },
-                        color: '#27ae60'
-                    },
-                    grid: { drawOnChartArea: false } 
-                },
-                yCurrent: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' },
-                    ticks: { 
-                        font: { size: fontSizes.ticks },
-                        color: '#3498db'
-                    },
-                    grid: { drawOnChartArea: false } 
-                },
-                yVoltage: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.axisTitle }, color: '#9b59b6' },
-                    ticks: { 
-                        font: { size: fontSizes.ticks },
-                        color: '#9b59b6'
-                    },
-                    grid: { drawOnChartArea: false } 
-                },
-                yEfficiency: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' },
-                    ticks: { 
-                        font: { size: fontSizes.ticks },
-                        color: '#e67e22'
-                    },
-                    grid: { drawOnChartArea: false } 
-                }
+                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' }, ticks: { font: { size: fontSizes.ticks }, color: '#27ae60' }, grid: { drawOnChartArea: false } },
+                yCurrent: { type: 'linear', position: 'right', title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { font: { size: fontSizes.ticks }, color: '#3498db' }, grid: { drawOnChartArea: false } },
+                yVoltage: { type: 'linear', position: 'right', title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.axisTitle }, color: '#9b59b6' }, ticks: { font: { size: fontSizes.ticks }, color: '#9b59b6' }, grid: { drawOnChartArea: false } },
+                yEfficiency: { type: 'linear', position: 'right', title: { display: true, text: 'Efficiency (g/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { font: { size: fontSizes.ticks }, color: '#e67e22' }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -1113,7 +1287,7 @@ function renderStepGraphs(data) {
                 { label: 'RPM', data: rpm, borderColor: '#e74c3c', pointRadius: 0, borderWidth: 1, yAxisID: 'yRPM' },
                 { label: 'Current (A)', data: current, borderColor: '#3498db', pointRadius: 0, borderWidth: 1, yAxisID: 'yCurrent' },
                 { label: 'Voltage (V)', data: voltage, borderColor: '#9b59b6', pointRadius: 0, borderWidth: 1, yAxisID: 'yVoltage' },
-                { label: 'Efficiency (kg/W)', data: thrustPerWatt, borderColor: '#e67e22', pointRadius: 0, borderWidth: 1, yAxisID: 'yEfficiency' }
+                { label: 'Efficiency (g/W)', data: thrustPerWatt, borderColor: '#e67e22', pointRadius: 0, borderWidth: 1, yAxisID: 'yEfficiency' }
             ]
         },
         options: {
@@ -1168,7 +1342,7 @@ function renderStepGraphs(data) {
                 },
                 yCurrent: { position: 'right', title: { display: true, text: 'Current (A)', font: { size: fontSizes.axisTitle }, color: '#3498db' }, ticks: { color: '#3498db', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
                 yVoltage: { position: 'right', title: { display: true, text: 'Voltage (V)', font: { size: fontSizes.axisTitle }, color: '#9b59b6' }, ticks: { color: '#9b59b6', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
-                yEfficiency: { position: 'right', title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } }
+                yEfficiency: { position: 'right', title: { display: true, text: 'Efficiency (g/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -1226,99 +1400,57 @@ function renderEnduranceGraphs(data) {
 }
 
 // IR: ΔV vs ΔI scatter with linear fit (simple)
+// IR: plateau-pair dV vs dI scatter + regression line.
+// The old version differentiated consecutive 20 Hz samples (pure noise);
+// computation now lives in analysisMath.computeIRFromPulses and runs once
+// per test, independent of chart rendering.
 function renderIRGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
+    const profile = getCurrentActiveProfile() || {};
+    const res = (state.analysis.lastResults && state.analysis.lastResults.type === 'ir')
+        ? state.analysis.lastResults
+        : computeIRFromPulses(data, { cells: profile.batteryCellCount || 0 });
 
-    const points = [];
-    for (let i = 1; i < data.voltage.length; i++) {
-        const dv = data.voltage[i - 1] - data.voltage[i];
-        const di = data.current[i] - data.current[i - 1];
-        if (Math.abs(di) > 0.05) {
-            points.push({ x: di, y: dv });
-        }
+    if (!res.points.length) {
+        appendLog('IR: no usable pulse pairs found (increase pulse amplitude)');
+        return;
     }
-
-    const fit = linearRegression(points);
-
-    if (fit) {
-        state.analysis.lastIR = fit.slope;    // Ohms
-        state.analysis.lastIR_R2 = fit.r2;
+    const datasets = [{
+        label: '\u0394V vs \u0394I (per pulse)',
+        data: res.points,
+        borderColor: 'blue',
+        backgroundColor: 'rgba(0,0,255,0.4)',
+        pointRadius: 4
+    }];
+    if (res.fitLine) {
+        datasets.push({
+            label: 'Linear fit',
+            data: res.fitLine,
+            type: 'line',
+            borderColor: 'red',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false
+        });
     }
-
-    // Build fitted line
-    const xs = points.map(p => p.x);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const fitLine = [
-        { x: minX, y: fit.slope * minX + fit.intercept },
-        { x: maxX, y: fit.slope * maxX + fit.intercept }
-    ];
-
     chartInstance = new Chart(ctx, {
         type: 'scatter',
-        data: {
-            datasets: [
-                {
-                    label:'ΔV vs ΔI',
-                    data: points,
-                    borderColor:'purple',
-                    backgroundColor:'rgba(128,0,128,0.4)'
-                },
-                {
-                    label:'Linear Fit',
-                    type:'line',
-                    data: fitLine,
-                    borderColor:'red',
-                    borderWidth:2,
-                    pointRadius:0,
-                    fill:false
-                }
-            ]
-        },
+        data: { datasets },
         options: {
+            responsive: true,
             plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: { size: fontSizes.legend },
-                        boxWidth: fontSizes.boxWidth,
-                        boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding,
-                        textAlign: 'center',
-                        usePointStyle: false
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += context.parsed.y.toFixed(2);
-                            return label;
-                        }
-                    }
-                },
-                annotation: {
-                    annotations: {
-                        labelIR: {
-                            type: 'label',
-                            content: `IR = ${fit.slope.toFixed(4)} Ω\nR² = ${fit.r2.toFixed(4)}`,
-                            position: 'center',
-                            xValue: minX,
-                            yValue: fit.slope * minX + fit.intercept,
-                            backgroundColor: 'rgba(255,255,255,0.7)',
-                            borderColor: 'black',
-                            borderWidth: 1
-                        }
-                    }
-                }
+                legend: { position: 'bottom', labels: { font: { size: fontSizes.legend }, boxWidth: fontSizes.boxWidth, padding: fontSizes.padding } },
+                tooltip: { callbacks: { label: c => `\u0394I=${c.parsed.x.toFixed(2)} A, \u0394V=${c.parsed.y.toFixed(3)} V` } },
+                title: res.ohms !== null ? {
+                    display: true,
+                    text: `R = ${(res.ohms * 1000).toFixed(1)} m\u03a9` + (res.perCell ? ` (${(res.perCell * 1000).toFixed(1)} m\u03a9/cell)` : '') + `  R\u00b2=${res.r2.toFixed(3)}`,
+                    font: { size: fontSizes.title + 2 }
+                } : undefined
             },
             scales: {
-                x: { title:{ text:'ΔCurrent (A)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
-                y: { title:{ text:'ΔVoltage (V)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
+                x: { type: 'linear', title: { display: true, text: '\u0394 Current (A)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
+                y: { title: { display: true, text: '\u0394 Voltage (V)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
             }
         }
     });
@@ -1326,110 +1458,52 @@ function renderIRGraphs(data) {
 
 
 // KV: RPM vs Voltage scatter (slope = KV)
+// KV: RPM vs EFFECTIVE voltage (duty * (V - I*R)) scatter; slope = KV.
+// Fitting RPM against raw supply voltage at partial throttle systematically
+// underestimates KV by ~1/duty; see analysisMath.computeKV.
 function renderKVGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
-    // Use meanVoltage and meanRPM if available, else fallback to raw arrays
-    const voltArr = data.meanVoltage && data.meanVoltage.length ? data.meanVoltage : data.voltage;
-    const rpmArr = data.meanRPM && data.meanRPM.length ? data.meanRPM : data.rpm;
-    const points = voltArr.map((v, i) => ({ x: v, y: rpmArr[i] }));
-    const fit = linearRegression(points);
-
-    // Save result
-    if (fit) {
-        state.analysis.lastKV = fit.slope; // KV = slope in RPM/V
-        state.analysis.lastKV_R2 = fit.r2;
+    const res = (state.analysis.lastResults && state.analysis.lastResults.type === 'kv')
+        ? state.analysis.lastResults
+        : computeKV({
+            meanVoltage: data.meanVoltage || data.voltage || [],
+            meanRPM: data.meanRPM || data.rpm || [],
+            meanCurrent: data.meanCurrent || [],
+            throttlePercent: data.kvThrottle !== undefined ? data.kvThrottle : 100,
+            resistance: state.analysis.lastIR || 0
+        });
+    if (!res.points.length) {
+        appendLog('KV: not enough voltage steps collected');
+        return;
     }
-
-    // Build fitted line (just 2 points: min & max voltage)
-    const minV = Math.min(...voltArr);
-    const maxV = Math.max(...voltArr);
-    const fitLine = [
-        { x: minV, y: fit.slope * minV + fit.intercept },
-        { x: maxV, y: fit.slope * maxV + fit.intercept }
-    ];
-
+    const datasets = [{
+        label: 'RPM vs effective voltage',
+        data: res.points,
+        borderColor: 'blue',
+        backgroundColor: 'rgba(0,0,255,0.4)',
+        pointRadius: 4
+    }];
+    if (res.fitLine) {
+        datasets.push({ label: 'Linear fit', data: res.fitLine, type: 'line', borderColor: 'red', borderWidth: 1.5, pointRadius: 0, fill: false });
+    }
     chartInstance = new Chart(ctx, {
         type: 'scatter',
-        data: {
-            datasets: [
-                {
-                    label:'RPM vs Voltage',
-                    data: points,
-                    borderColor:'blue',
-                    backgroundColor:'rgba(0,0,255,0.4)'
-                },
-                {
-                    label:'Linear Fit',
-                    type:'line',
-                    data: fitLine,
-                    borderColor:'red',
-                    borderWidth:2,
-                    pointRadius:0,
-                    fill:false
-                }
-            ]
-        },
+        data: { datasets },
         options: {
+            responsive: true,
             plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: { size: fontSizes.legend },
-                        boxWidth: fontSizes.boxWidth,
-                        boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding,
-                        textAlign: 'center',
-                        usePointStyle: false
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (label.includes('RPM')) {
-                                label += Math.round(context.parsed.y);
-                            } else {
-                                label += context.parsed.y.toFixed(2);
-                            }
-                            return label;
-                        }
-                    }
-                },
-                annotation: {
-                    annotations: {
-                        label1: {
-                            type: 'label',
-                            content: `KV = ${fit.slope.toFixed(2)} RPM/V\nR² = ${fit.r2.toFixed(4)}`,
-                            xValue: maxV,
-                            yValue: fit.slope * maxV + fit.intercept,
-                            xAdjust: -30,
-                            yAdjust: 30,
-                            backgroundColor: 'rgba(255,255,255,0.85)',
-                            borderColor: 'black',
-                            borderWidth: 1,
-                            font: { size: 14, weight: 'bold' },
-                            color: 'black',
-                            callout: { display: false },
-                            position: 'end',
-                        }
-                    }
-                }
+                legend: { position: 'bottom', labels: { font: { size: fontSizes.legend }, boxWidth: fontSizes.boxWidth, padding: fontSizes.padding } },
+                tooltip: { callbacks: { label: c => `V_eff=${c.parsed.x.toFixed(2)} V, ${Math.round(c.parsed.y)} RPM` } },
+                title: res.kv !== null ? {
+                    display: true,
+                    text: `KV = ${res.kv.toFixed(0)} RPM/V  R\u00b2=${res.r2.toFixed(4)}`,
+                    font: { size: fontSizes.title + 2 }
+                } : undefined
             },
             scales: {
-                x: { title:{ text:'Voltage (V)', display:true, font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
-                y: { 
-                    title:{ text:'RPM (×10³)', display:true, font: { size: fontSizes.axisTitle } },
-                    ticks: {
-                        font: { size: fontSizes.ticks },
-                        callback: function(value) {
-                            return (value / 1000).toFixed(1);
-                        }
-                    }
-                }
+                x: { type: 'linear', title: { display: true, text: 'Effective voltage duty\u00b7(V\u2212I\u00b7R) (V)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
+                y: { title: { display: true, text: 'RPM', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } }
             }
         }
     });
@@ -1501,115 +1575,40 @@ function renderMappingGraphs(data) {
 }
 
 // Efficiency: dedicated efficiency analysis with power efficiency (kg/W) and grams-per-watt
+// Efficiency: aggregated per-step efficiency (g/W, industry convention),
+// power, thrust and prop loading vs throttle on a linear axis.
 function renderEfficiencyGraphs(data) {
     const ctx = resetChartCtx();
     const fontSizes = getChartFontSizes();
-    const d = prepareDataForRender(data);
-
-    const thrust  = smoothCentered(d.thrust,  11);
-    const voltage = smoothCentered(d.voltage, 11);
-    const current = smoothCentered(d.current, 11);
-    const rpm     = smoothCentered(d.rpm,     11);
-    
-    // Calculate power and efficiency metrics
-    const power = voltage.map((v, i) => v * current[i]); // Watts
-    const efficiency = thrust.map((t, i) => power[i] > 0 ? t / power[i] : 0); // kg/W
-    const gramsPerWatt = efficiency.map(e => e * 1000); // g/W
-    const thrustPerRPM = thrust.map((t, i) => rpm[i] > 0 ? (t * 1000) / rpm[i] : 0); // g/1000RPM
-    
+    const agg = aggregateSweepSteps(data);
+    if (!agg.throttle.length) { renderStepGraphs(data); return; }
+    const toXY = ch => agg.throttle.map((thr, i) => ({ x: thr, y: agg[ch][i] }));
+    const mk = (label, ch, color, axis) => ({
+        label, data: toXY(ch), borderColor: color, backgroundColor: color,
+        showLine: true, pointRadius: 2.5, borderWidth: 1.5, yAxisID: axis, fill: false
+    });
     chartInstance = new Chart(ctx, {
-        type: 'line',
+        type: 'scatter',
         data: {
-            labels: d.throttle.map(v => Math.round(v)),
             datasets: [
-                { label: 'Efficiency (kg/W)', data: efficiency, borderColor: '#e67e22', fill: false, pointRadius: 0.5, borderWidth: 1.5, yAxisID: 'yEfficiency' },
-                { label: 'Power (W)', data: power, borderColor: '#e74c3c', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yPower' },
-                { label: 'Thrust (kg)', data: thrust, borderColor: '#27ae60', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrust' },
-                { label: 'g/1000RPM', data: thrustPerRPM, borderColor: '#9b59b6', fill: false, pointRadius: 0.5, borderWidth: 1, yAxisID: 'yThrustPerRPM' }
+                mk('Efficiency (g/W)', 'efficiencyGW', '#e67e22', 'yEfficiency'),
+                mk('Power (W)', 'power', '#e74c3c', 'yPower'),
+                mk('Thrust (kg)', 'thrust', '#27ae60', 'yThrust'),
+                mk('g/1000RPM', 'gPer1000RPM', '#9b59b6', 'yThrustPerRPM')
             ]
         },
         options: {
             responsive: true,
-            plugins: { 
-                legend: { 
-                    position: 'bottom',
-                    labels: { 
-                        font: { size: fontSizes.legend },
-                        boxWidth: fontSizes.boxWidth,
-                        boxHeight: fontSizes.boxHeight,
-                        padding: fontSizes.padding,
-                        textAlign: 'center',
-                        usePointStyle: false
-                    },
-                    onClick: (e, legendItem, legend) => {
-                        const index = legendItem.datasetIndex;
-                        const chart = legend.chart;
-                        
-                        // Use Chart.js native toggle behavior
-                        Chart.defaults.plugins.legend.onClick.call(legend, e, legendItem, legend);
-                        
-                        // Additionally toggle the corresponding y-axis
-                        const meta = chart.getDatasetMeta(index);
-                        const dataset = chart.data.datasets[index];
-                        const yAxisID = dataset.yAxisID;
-                        
-                        if (yAxisID && chart.options.scales[yAxisID]) {
-                            chart.options.scales[yAxisID].display = !meta.hidden;
-                        }
-                        
-                        chart.update();
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.dataset.label && context.dataset.label.includes('Efficiency')) {
-                                label += context.parsed.y.toFixed(3);
-                            } else if (context.dataset.label && context.dataset.label.includes('Thrust')) {
-                                label += context.parsed.y.toFixed(2);
-                            } else if (context.dataset.label && context.dataset.label.includes('g/1000RPM')) {
-                                label += context.parsed.y.toFixed(2);
-                            } else {
-                                label += context.parsed.y.toFixed(1);
-                            }
-                            return label;
-                        }
-                    }
-                }
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { size: fontSizes.legend }, boxWidth: fontSizes.boxWidth, boxHeight: fontSizes.boxHeight, padding: fontSizes.padding } },
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(2)} @ ${c.parsed.x.toFixed(1)}%` } }
             },
             scales: {
-                x: { title: { display: false }, ticks: { font: { size: fontSizes.ticks } } },
-                yEfficiency: { 
-                    type: 'linear', 
-                    position: 'left', 
-                    title: { display: true, text: 'Efficiency (kg/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' },
-                    ticks: { color: '#e67e22', font: { size: fontSizes.ticks } }
-                },
-                yPower: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Power (W)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' },
-                    ticks: { color: '#e74c3c', font: { size: fontSizes.ticks } },
-                    grid: { drawOnChartArea: false } 
-                },
-                yThrust: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' },
-                    ticks: { color: '#27ae60', font: { size: fontSizes.ticks } },
-                    grid: { drawOnChartArea: false } 
-                },
-                yThrustPerRPM: { 
-                    type: 'linear', 
-                    position: 'right', 
-                    title: { display: true, text: 'g/1000RPM', font: { size: fontSizes.axisTitle }, color: '#9b59b6' },
-                    ticks: { color: '#9b59b6', font: { size: fontSizes.ticks } },
-                    grid: { drawOnChartArea: false } 
-                }
+                x: { type: 'linear', title: { display: true, text: 'Throttle (%)', font: { size: fontSizes.axisTitle } }, ticks: { font: { size: fontSizes.ticks } } },
+                yEfficiency: { type: 'linear', position: 'left', title: { display: true, text: 'Efficiency (g/W)', font: { size: fontSizes.axisTitle }, color: '#e67e22' }, ticks: { color: '#e67e22', font: { size: fontSizes.ticks } } },
+                yPower: { type: 'linear', position: 'right', title: { display: true, text: 'Power (W)', font: { size: fontSizes.axisTitle }, color: '#e74c3c' }, ticks: { color: '#e74c3c', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
+                yThrust: { type: 'linear', position: 'right', title: { display: true, text: 'Thrust (kg)', font: { size: fontSizes.axisTitle }, color: '#27ae60' }, ticks: { color: '#27ae60', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } },
+                yThrustPerRPM: { type: 'linear', position: 'right', title: { display: true, text: 'g/1000RPM', font: { size: fontSizes.axisTitle }, color: '#9b59b6' }, ticks: { color: '#9b59b6', font: { size: fontSizes.ticks } }, grid: { drawOnChartArea: false } }
             }
         }
     });
@@ -1642,9 +1641,24 @@ function renderGraphs(mode, data) {
 // CSV Export utility (same semantics as original)
 // -----------------------------------------------------------------------------
 
-function generateCSV(data) {
-    const headers = ['Time (s)', 'Throttle (%)', 'Voltage (V)', 'Current (A)', 'Power (W)', 'RPM', 'Thrust (g)', 'ESC Temp (°C)', 'Motor Temp (°C)'];
-    const rows = [headers];
+function generateCSV(data, meta = null) {
+    // NOTE: thrust is stored in kg (telemetry grams / 1000). The previous
+    // header said "Thrust (g)" while writing kg values - a 1000x trap for
+    // anyone post-processing the export.
+    const headers = ['Time (s)', 'Throttle (%)', 'Voltage (V)', 'Current (A)', 'Power (W)', 'RPM', 'Thrust (kg)', 'ESC Temp (°C)', 'Motor Temp (°C)'];
+    const rows = [];
+    if (meta) {
+        rows.push([`# mode: ${meta.mode || ''}`]);
+        rows.push([`# date: ${meta.timestamp ? new Date(meta.timestamp).toISOString() : ''}`]);
+        if (meta.profile) {
+            const pr = meta.profile;
+            rows.push([`# profile: ${pr.profileName || ''} | motor ${pr.motorKV || '?'}KV ${pr.motorPoles || '?'}P | prop ${pr.propDiameter || '?'}x${pr.propPitch || '?'} ${pr.propBlades || '?'}B | battery ${pr.batteryCellCount || '?'}S`]);
+        }
+        if (meta.params) rows.push([`# params: ${Object.entries(meta.params).map(([k, v]) => `${k}=${v}`).join(' ')}`.replace(/,/g, ';')]);
+        if (meta.results && meta.results.type === 'ir' && meta.results.ohms !== null) rows.push([`# result: IR=${(meta.results.ohms * 1000).toFixed(2)} mOhm R2=${meta.results.r2.toFixed(4)}`]);
+        if (meta.results && meta.results.type === 'kv' && meta.results.kv !== null) rows.push([`# result: KV=${meta.results.kv.toFixed(1)} RPM/V R2=${meta.results.r2.toFixed(4)}`]);
+    }
+    rows.push(headers);
     for (let i = 0; i < data.timestamps.length; i++) {
         rows.push([
             (data.timestamps[i]).toFixed(2),
@@ -1659,6 +1673,31 @@ function generateCSV(data) {
         ]);
     }
     return rows.map(r => r.join(',')).join('\n');
+}
+
+function generateJSON(run) {
+    // Self-describing export: data + profile + params + computed results.
+    return JSON.stringify({
+        format: 'uavmlab-run-v1',
+        mode: run.mode,
+        timestamp: run.timestamp,
+        date: new Date(run.timestamp).toISOString(),
+        profile: run.profile || null,
+        params: run.params || null,
+        results: run.results || null,
+        units: { thrust: 'kg', voltage: 'V', current: 'A', power: 'W', temp: 'degC', time: 's' },
+        data: run.data
+    }, null, 1);
+}
+
+function downloadBlob(content, filename, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 function downloadCSV(csv, filename) {
@@ -1730,8 +1769,8 @@ function getModeDescription(mode) {
             title: 'Efficiency Analysis',
             purpose: 'Analyzes motor and propeller efficiency by measuring thrust output per watt of electrical power consumed. Identifies the most efficient operating points for your motor/propeller combination.',
             parameters: '<ul><li><strong>Start Throttle:</strong> Initial throttle percentage (typically 10-20%)</li><li><strong>End Throttle:</strong> Final throttle percentage (typically 80-100%)</li><li><strong>Step Size:</strong> Throttle increment between measurements</li><li><strong>Dwell:</strong> Time in seconds to stabilize at each throttle step</li><li><strong>Ramp Rate:</strong> Speed of throttle changes between steps</li></ul>',
-            howItWorks: 'Performs a throttle sweep while calculating real-time efficiency metrics: thrust-to-power ratio (kg/W), power consumption (W), and propeller loading (g/1000RPM). Each metric helps identify optimal operating ranges.',
-            graphAnalysis: 'Primary graph shows Efficiency (kg/W) on left axis vs throttle. Higher values indicate more efficient operation. Additional metrics include Power (W) for total consumption, Thrust (kg) for reference, and g/1000RPM for propeller efficiency. Look for peak efficiency points - typically found at mid-throttle ranges. Compare different propellers to find the most efficient setup for your application.'
+            howItWorks: 'Performs a throttle sweep while calculating real-time efficiency metrics: thrust-to-power ratio (g/W), power consumption (W), and propeller loading (g/1000RPM). Each metric helps identify optimal operating ranges.',
+            graphAnalysis: 'Primary graph shows Efficiency (g/W) on left axis vs throttle. Higher values indicate more efficient operation. Additional metrics include Power (W) for total consumption, Thrust (kg) for reference, and g/1000RPM for propeller efficiency. Look for peak efficiency points - typically found at mid-throttle ranges. Compare different propellers to find the most efficient setup for your application.'
         }
     };
     return descriptions[mode] || {
@@ -1784,7 +1823,8 @@ const modeParamsSchema = {
         { key: 'onDuration', label: 'On Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
         { key: 'offDuration', label: 'Off Duration (s)', type: 'number', min: 0.2, max: 30, step: 0.2, value: 3 },
         { key: 'cycles', label: 'Cycles', type: 'number', min: 1, max: 50, step: 1, value: 5 },
-        { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 100 }
+        { key: 'instantStep', label: 'Instant step (recommended for response measurement)', type: 'checkbox', value: 1 },
+        { key: 'rampRate', label: 'Ramp Rate if not instant (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 100 }
     ],
     endurance: [
         { key: 'throttle', label: 'Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 50 },
@@ -1812,8 +1852,22 @@ const modeParamsSchema = {
     ],
     mapping: [
         { key: 'repeats', label: 'Repeats', type: 'number', min: 1, max: 10, step: 1, value: 3 },
+        { key: 'startThrottle', label: 'Start Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
+        { key: 'endThrottle', label: 'End Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 80 },
+        { key: 'stepSize', label: 'Step Size (%)', type: 'number', min: 0.5, max: 20, step: 0.5, value: 10 },
+        { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 60, step: 0.5, value: 2 },
+        { key: 'cooldownBetween', label: 'Cooldown Between Runs (s)', type: 'number', min: 0, max: 600, step: 5, value: 30 },
         { key: 'ambientTemp', label: 'Ambient Temp (°C)', type: 'number', min: -20, max: 50, step: 1, value: 25 },
         { key: 'notes', label: 'Notes', type: 'text', value: '' }
+    ],
+    // Previously missing: the Efficiency mode silently ran with hardcoded
+    // defaults because renderParamsUI found no schema for it.
+    efficiency: [
+        { key: 'startThrottle', label: 'Start Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 10 },
+        { key: 'endThrottle', label: 'End Throttle (%)', type: 'number', min: 0, max: 100, step: 0.5, value: 100 },
+        { key: 'stepSize', label: 'Step Size (%)', type: 'number', min: 0.5, max: 20, step: 0.5, value: 5 },
+        { key: 'dwell', label: 'Dwell per Step (s)', type: 'number', min: 0.5, max: 60, step: 0.5, value: 3 },
+        { key: 'rampRate', label: 'Ramp Rate (%/s)', type: 'number', min: 1, max: 100, step: 1, value: 20 }
     ]
 };
 
@@ -1833,6 +1887,10 @@ function renderParamsUI(mode) {
         if (field.key.toLowerCase().includes('throttle') || field.label.includes('Throttle (%)') || field.key === 'baseline') {
             min = Math.max(min || 0, minThrottlePercent);
             value = Math.max(value, minThrottlePercent);
+        }
+        if (field.type === 'checkbox') {
+            const checked = value ? 'checked' : '';
+            return `<div class="param-field"><label for="param-${field.key}">${field.label}</label><input id="param-${field.key}" name="${field.key}" type="checkbox" ${checked}></div>`;
         }
         const attrs = [
             `id="param-${field.key}"`,
@@ -1855,7 +1913,8 @@ function getCurrentParamsFromUI() {
     inputs.forEach(i => {
         const key = i.name;
         if (!key) return;
-        if (i.type === 'number') params[key] = parseFloat(i.value);
+        if (i.type === 'checkbox') params[key] = i.checked ? 1 : 0;
+        else if (i.type === 'number') params[key] = parseFloat(i.value);
         else params[key] = i.value;
     });
     return params;
@@ -2047,6 +2106,41 @@ export function initAnalizeTab() {
         });
     }
 
+    // CSV / JSON export buttons (created next to the PDF export button).
+    // CSV now carries metadata header lines and the corrected Thrust (kg) unit;
+    // JSON is a self-describing export with profile, params and computed results.
+    if (exportBtn && !document.getElementById('exportCsvButton')) {
+        const mkBtn = (id, text) => {
+            const b = document.createElement('button');
+            b.id = id;
+            b.textContent = text;
+            b.className = exportBtn.className;
+            b.style.marginLeft = '6px';
+            exportBtn.insertAdjacentElement('afterend', b);
+            return b;
+        };
+        const jsonBtn = mkBtn('exportJsonButton', 'JSON');
+        const csvBtn = mkBtn('exportCsvButton', 'CSV');
+        const lastRunOrNull = () => {
+            const hist = state.analysis.history || [];
+            return hist.length ? hist[hist.length - 1] : null;
+        };
+        csvBtn.addEventListener('click', () => {
+            const run = lastRunOrNull();
+            if (!run) return;
+            const csv = generateCSV(run.data, run);
+            downloadBlob(csv, `analyze_${run.mode}_${new Date(run.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.csv`, 'text/csv');
+        });
+        jsonBtn.addEventListener('click', () => {
+            const run = lastRunOrNull();
+            if (!run) return;
+            downloadBlob(generateJSON(run), `analyze_${run.mode}_${new Date(run.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.json`, 'application/json');
+        });
+    }
+
+    // Run comparison selector (propeller A vs B etc.)
+    refreshCompareSelect();
+
     // Fullscreen toggle for chart container
     if (fullscreenBtn) {
         fullscreenBtn.addEventListener('click', () => {
@@ -2067,6 +2161,7 @@ export function initAnalizeTab() {
             if (!hist.length) return;
             const last = hist[hist.length - 1];
             renderGraphs(last.mode, last.data);
+            renderResultsSummary(last.mode, last.results);
         });
     }
 
